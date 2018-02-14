@@ -1,6 +1,6 @@
-The Koala.jl package is licensed under the MIT "Expat" License:
+The KoalaTrees.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2018: anthony.blaom.
+> Copyright (c) 2018: Anthony D. Blaom.
 >
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
