@@ -26,7 +26,8 @@ println("score = $score")
 @test predict(mach, X, test) ==
     predict(mach.model, mach.predictor, mach.Xt[test,:], false, false)
 
-learning_curve(mach, test, [2, 4, 8, 1000])
+learning_curve(mach, train, test, [2, 4, 8, 1000], raw=false)
+learning_curve(mach, train, test, [2000, 3000], raw=false, restart=false)
 cv(mach, vcat(test, train))
 
 

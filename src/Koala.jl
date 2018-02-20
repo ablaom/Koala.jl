@@ -21,7 +21,6 @@ const srcdir = dirname(@__FILE__) # the full path for this file
 function fit end
 function predict end
 function setup end
-function get_metadata end
 function transform end
 function inverse_transform end
 function get_scheme_X end
@@ -229,7 +228,6 @@ end
 mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
 
     model::M
-    metadata
     scheme_X
     scheme_y
     n_iter::Int
@@ -257,7 +255,6 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
 
         ret = new{P, M}(model::M)
-        ret.metadata = get_metadata(model, X, y, train_rows, features)
         ret.scheme_X = get_scheme_X(model, X, train_rows, features)
         ret.scheme_y = get_scheme_y(model, y, train_rows)
         ret.n_iter = 0
@@ -289,7 +286,6 @@ function Base.showall(stream::IO, mach::SupervisedMachine)
     dict[:report] = "Dict with keys: $report_items"
     dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
     dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
-    dict[:metadata] = string("Object of type $(typeof(mach.metadata))")
     delete!(dict, :cache)
     showall(stream, dict)
     println(stream, "\nModel detail:")
@@ -302,7 +298,7 @@ function fit!(mach::SupervisedMachine, rows;
         mach.n_iter = 0
     end
     if  mach.n_iter == 0 
-        mach.cache = setup(mach.model, mach.Xt, mach.yt, rows, mach.metadata,
+        mach.cache = setup(mach.model, mach.Xt, mach.yt, rows, mach.scheme_X,
                            parallel, verbosity)
     end
     mach.predictor, report, mach.cache =
@@ -351,12 +347,9 @@ end
 
 ## `SupervisedModel`  fall-back methods
 
-get_metadata(model::SupervisedModel, X::AbstractDataFrame, y,
-             rows, features) = features
-
 # for when rows are left out:
-setup(model::SupervisedModel, Xt, yt, rows, metadata, parallel, verbosity) =
-    setup(model, Xt[rows,:], yt[rows], metadata, parallel, verbosity) 
+setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
+    setup(model, Xt[rows,:], yt[rows], scheme_X, parallel, verbosity) 
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
@@ -382,7 +375,7 @@ transform(model::ConstantRegressor, no_thing::Void, y) = y
 
 inverse_transform(model::ConstantRegressor, no_thing::Void, yt) = yt
 
-function setup(rgs::ConstantRegressor, X, y, metadata, parallel, verbosity)
+function setup(rgs::ConstantRegressor, X, y, scheme_X, parallel, verbosity)
     return mean(y)
 end
     
@@ -449,7 +442,8 @@ RMS error for the machine `mach`, on the test data with rows
 implements (assumed to be iterative). Here `n` ranges over `1:10:200`
 and training is performed using `train_rows`. For parallization, the
 value of the optional keyword `parallel` is passed to each call to
-`fit`, along with any other keyword arguments `fit` supports.
+`fit`, along with any other keyword arguments `fit_args` that `fit`
+supports.
 
 """
 function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
@@ -469,7 +463,7 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
     
     if restart
         mach.n_iter = 0
-        mach.cache = setup(mach.model, mach.Xt, mach.yt, train_rows, mach.metadata,
+        mach.cache = setup(mach.model, mach.Xt, mach.yt, train_rows, mach.scheme_X,
                            parallel, verbosity - 1) 
     end
 
