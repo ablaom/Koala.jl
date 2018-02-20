@@ -1,4 +1,4 @@
-__precompile__()
+#__precompile__()
 module Koala
 
 # new: 
@@ -6,7 +6,7 @@ export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, err
 export SupervisedMachine, ConstantRegressor
-export splitrows, learning_curve
+export splitrows, learning_curve, cv, @colon, @curve, @pcurve
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names
@@ -276,10 +276,8 @@ end
 
 function Base.show(stream::IO, mach::SupervisedMachine)
     abbreviated(n) = "..."*string(n)[end-2:end]
-    type_string = string("{", mach.model, "}")
-    print(stream, string(typeof(mach).name.name,
-                         type_string,
-                         "@", abbreviated(hash(mach))))
+    type_string = string("SupervisedMachine{", typeof(mach.model).name.name, "}")
+    print(stream, type_string, "@", abbreviated(hash(mach)))
 end
 
 
@@ -294,7 +292,7 @@ function Base.showall(stream::IO, mach::SupervisedMachine)
     dict[:metadata] = string("Object of type $(typeof(mach.metadata))")
     delete!(dict, :cache)
     showall(stream, dict)
-    println(stream)
+    println(stream, "\nModel detail:")
     showall(stream, mach.model)
 end
 
@@ -333,7 +331,10 @@ function predict(mach::SupervisedMachine, X; parallel=true, verbosity=1)
 end
 
 function err(mach::SupervisedMachine, test_rows;
-             loss=rms, parallel=false, verbosity=0, raw=false)
+             loss=rms, parallel=false, verbosity=0, raw=false, suppress_warning=false)
+
+    !raw || suppress_warning || warn("Reporting errors for *transformed* target. "*
+                                    "Use `raw=false` to report true errors.")
 
     # transformed version of target predictions:
     raw_predictions = predict(mach.model, mach.predictor, mach.Xt, test_rows,
@@ -353,9 +354,9 @@ end
 get_metadata(model::SupervisedModel, X::AbstractDataFrame, y,
              rows, features) = features
 
+# for when rows are left out:
 setup(model::SupervisedModel, Xt, yt, rows, metadata, parallel, verbosity) =
     setup(model, Xt[rows,:], yt[rows], metadata, parallel, verbosity) 
-
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
@@ -397,7 +398,7 @@ function predict(rgs::ConstantRegressor, predictor, X, parallel, verbosity)
 end
 
 
-## Validation methods
+## Validation tools
 
 """
 ## splitrows(rows, fractions...)
@@ -434,7 +435,24 @@ function splitrows(rows, fractions...)
     return tuple(rowss...)
 end
 
-function learning_curve(mach::SupervisedMachine, test_rows,
+"""
+## `function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
+##                      range; restart=true, loss=rms, raw=true, parallel=true,
+##                      verbosity=1, fit_args...)`
+
+    u,v = learning_curve(mach, test_rows, 1:10:200)
+    plot(u, v)
+
+Assming, say, `Plots` is installed, the above produces a plot of the
+RMS error for the machine `mach`, on the test data with rows
+`test_rows`, against the number of iterations `n` of the algorithm it
+implements (assumed to be iterative). Here `n` ranges over `1:10:200`
+and training is performed using `train_rows`. For parallization, the
+value of the optional keyword `parallel` is passed to each call to
+`fit`, along with any other keyword arguments `fit` supports.
+
+"""
+function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
                         range; restart=true, loss=rms, raw=true, parallel=true,
                         verbosity=1, fit_args...) 
 
@@ -443,15 +461,15 @@ function learning_curve(mach::SupervisedMachine, test_rows,
     # save to be reset at end:
     old_n = mach.model.n
     
-    raw || warn("Reporting errors for *transformed* data. Use `raw=false` "*
+    !raw || warn("Reporting errors for *transformed* target. Use `raw=false` "*
                  " to report true errors.")
     
     range = collect(range)
     sort!(range)
     
     if restart
-        mach.n_iter=0
-        mach.cache = setup(mach.model, mach.Xt, mach.yt, mach.metadata,
+        mach.n_iter = 0
+        mach.cache = setup(mach.model, mach.Xt, mach.yt, train_rows, mach.metadata,
                            parallel, verbosity - 1) 
     end
 
@@ -486,8 +504,156 @@ function learning_curve(mach::SupervisedMachine, test_rows,
 
 end
 
-# function cv(mach:SupervisedMachine, test_rows;
-#              n_folds=9, loss=rms, parallel=true, verbosity=0, raw=false)
+""" 
+## `cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms, parallel=true, verbosity=1, raw=false, randomize=false)`
 
+Return a list of cross-validation root-mean-squared errors for
+patterns with row indices in `rows`, an iterator that is initially
+randomized when an optional parameter `randomize` is set to `true`.
+
+"""
+function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
+             parallel=true, verbosity=1, raw=false, randomize=false)
+
+    !raw || warn("Reporting errors for *transformed* target. Use `raw=false` "*
+                 " to report true errors.")
+
+    n_samples = length(rows)
+    if randomize
+         rows = sample(collect(rows), n_samples, replace=false)
+    end
+    k = floor(Int,n_samples/n_folds)
+
+    # function to return the error for the fold `rows[f:s]`:
+    function get_error(f, s)
+        test_rows = rows[f:s]
+        train_rows = vcat(rows[1:(f - 1)], rows[(s + 1):end])
+        fit!(mach, train_rows; parallel=false, verbosity=0)
+        return err(mach, test_rows;
+                   parallel=false, verbosity=verbosity - 1,
+                   raw=raw, suppress_warning=true)
+    end
+
+    firsts = 1:k:((n_folds - 1)*k + 1) # itr of first test_rows index
+    seconds = k:k:(n_folds*k)          # itr of ending test_rows index
+
+    if parallel && nworkers() > 1
+        if verbosity > 0
+            println("Distributing cross-validation computation "*
+                    "among $(nworkers()) workers.")
+        end
+        return @parallel vcat for n in 1:n_folds
+            Float64[get_error(firsts[n], seconds[n])]
+        end
+    else
+        errors = Array{Float64}(n_folds)
+        for n in 1:n_folds
+            verbosity < 1 || print("\rfold: $n")
+            errors[n] = get_error(firsts[n], seconds[n])
+        end
+        verbosity < 1 || println()
+        return errors
+    end
+
+end
+
+macro colon(p)
+    Expr(:quote, p)
+end
+
+"""
+## `@curve`
+
+The code, 
+ 
+    @curve var range code 
+
+evaluates `code`, replacing appearances of `var` therein with each
+value in `range`. The range and corresponding evaluations are returned
+as a tuple of arrays. For example,
+
+    @curve  x 1:3 (x^2 + 1)
+
+evaluates to 
+
+    ([1,2,3], [2, 5, 10])
+
+This is convenient for plotting functions using, eg, the `Plots` package:
+
+    plot(@curve x 1:3 (x^2 + 1))
+
+A macro `@pcurve` parallelizes the same behaviour.  A two-variable
+implementation is also available, operating as in the following
+example:
+
+    julia> @curve x [1,2,3] y [7,8] (x + y)
+    ([1,2,3],[7 8],[8.0 9.0; 9.0 10.0; 10.0 11.0])
+
+    julia> ans[3]
+    3×2 Array{Float64,2}:
+      8.0   9.0
+      9.0  10.0
+     10.0  11.0
+
+N.B. The second range is returned as a *row* vector for consistency
+with the output matrix. This is also helpful when plotting, as in:
+
+    julia> u1, u2, A = @curve x linspace(0,1,100) α [1,2,3] x^α
+    julia> u2 = map(u2) do α "α = "*string(α) end
+    julia> plot(u1, A, label=u2)
+
+which generates three superimposed plots - of the functions x, x^2 and x^3 - each
+labels with the exponents α = 1, 2, 3 in the legend.
+
+"""
+macro curve(var1, range, code)
+    quote
+        output = []
+        N = length($(esc(range)))
+        for i in eachindex($(esc(range)))
+            $(esc(var1)) = $(esc(range))[i]
+            print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
+            flush(STDOUT)
+            # print(i,"\r"); flush(STDOUT) 
+            push!(output, $(esc(code)))
+        end
+        collect($(esc(range))), [x for x in output]
+    end
+end
+
+macro curve(var1, range1, var2, range2, code)
+    quote
+        output = Array{Float64}(length($(esc(range1))), length($(esc(range2))))
+        for i1 in eachindex($(esc(range1)))
+            $(esc(var1)) = $(esc(range1))[i1]
+            for i2 in eachindex($(esc(range2)))
+                $(esc(var2)) = $(esc(range2))[i2]
+                # @dbg $(esc(var1)) $(esc(var2))
+                print((@colon $(esc(var1))), "=", $(esc(var1)), " ")
+                print((@colon $(esc(var2))), "=", $(esc(var2)), "                    \r")
+                flush(STDOUT)
+                output[i1,i2] = $(esc(code))
+            end
+        end
+        collect($(esc(range1))), collect($(esc(range2)))', output
+    end
+end
+
+macro pcurve(var1, range, code)
+    quote
+        N = length($(esc(range)))
+        pairs = @parallel vcat for i in eachindex($(esc(range)))
+            $(esc(var1)) = $(esc(range))[i]
+            print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
+            flush(STDOUT)
+            print(i,"\r"); flush(STDOUT) 
+            [( $(esc(range))[i], $(esc(code)) )]
+        end
+        sort!(pairs, by=first)
+        collect(map(first,pairs)), collect(map(last, pairs))
+    end
+end
+
+    
 
 end # module
