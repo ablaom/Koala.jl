@@ -157,42 +157,36 @@ function Base.showall(stream::IO, object::BaseType)
 end
 
 
-## Abstract model and machine types
+## Abstract model types
 
 # Here *models* are simply small data structures storing parameters
 # describing *what* is to be done with some data (rather than *how*
-# this is to be done). For example, a learning task may involve
-# one-hot encoding the categorical features of some input patterns,
-# standardizing the corresonding target values, and training a tree
-# gradient booster on that data. The model parameters will then
-# involve flags describing the transformations required, and
-# parameters such as the degree of L2 regularization of the booster
-# weights.
-abstract type Model <: BaseType end 
+# this is to be done). In the simplest case, the *type* of the model
+# itself, may suffice to deptermine what is to be done (see the model
+# type `UnivariateStandardizer` defined below). As a more complex
+# example, consider the learning task requiring one-hot encoding the
+# categorical features of some input patterns, standardizing the
+# corresonding target values, and training a tree gradient booster on
+# that data. The model parameters (ie its fields) will then involve
+# flags describing the transformations required, and parameters such
+# as the degree of L2 regularization of the booster weights.
+abstract type Model <: BaseType end
+
+# An abstract type for transformation models:
+abstract type Transformer <: Model end
 
 # Supervised model types are collected together according to their
-# corresponding predictor type, `P`. For example, we later prescribe
-# `ConstantRegressor <: SupervisedModel{Float64}`. One reason for this
-# is that ensemble methods involve ensembles of predictors whose type
-# should be known ahead of time.
+# corresponding predictor type, `P`. For example, the model type
+# `ConstantRegressor` (for predicting the historical target average on
+# all input patterns) has predictor type `Float64`. One reason for
+# this is that ensemble methods involve ensembles of predictors whose
+# type should be known ahead of time.
 abstract type SupervisedModel{P} <: Model end
 abstract type Regressor{P} <: SupervisedModel{P} end
 abstract type Classifier{P} <: SupervisedModel{P} end
 
-# Similar remarks apply to transformer model types; see the
-# `KoalaTransformers` module.
 
-# A *machine* is a larger structure wrapping around the model extra
-# data needed to carry out, at various stages, the learning
-# task. Certain parameters of the model will have to be tuned during
-# training and we call these *hyperparameters*. If a preliminary part
-# of the learning task (eg one-hot encoding categoricals) does not
-# depend on the values of hyperparameters, then these tasks will be
-# performed already during the machine's construction (instantiation).
-abstract type Machine <: BaseType end
-
-
-## Loss and lower-interface error functions
+## Loss and low-level error functions
 
 function rms(y, yhat, rows)
     length(y) == length(yhat) || throw(DimensionMismatch())
@@ -240,6 +234,51 @@ function err(rgs::Regressor, predictor, X, y,
     return loss(y, predict(rgs, predictor, X, parallel, verbosity))
 end
 
+# TODO: Classifier loss and error functions
+
+
+## Machines
+
+# A *machine* is a larger structure wrapping around the model extra
+# data needed to carry out, at various stages, a data processing (eg
+# learning) task. Certain parameters of the model will have to be
+# tuned during training and we call these *hyperparameters*. If a
+# preliminary part of the task (eg one-hot encoding inputs) does not
+# depend on the values of hyperparameters, then these tasks will be
+# performed already during the machine's construction (instantiation).
+abstract type Machine <: BaseType end
+
+
+## Machines for transforming
+
+struct TransformerMachine{T <: Transformer} <: Machine
+
+    transformer::T
+    scheme
+
+    function TransformerMachine{T}(transformer::T, X;
+                                   parallel::Bool=true,
+                                   verbosity::Int=1, args...) where T <: Transformer
+        scheme = fit(transformer, X, parallel, verbosity; args...)
+        return new{T}(transformer, scheme)
+    end
+
+end
+
+TransformerMachine(transformer::T, X; args...) where T <: Transformer =
+    TransformerMachine{T}(transformer, X; args...)
+
+function transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
+    return transform(mach.transformer, mach.scheme, X)
+end
+
+function inverse_transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
+    return inverse_transform(mach.transformer, mach.scheme, X)
+end
+
+
+## Machines for supervised learning
+
 mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
 
     model::M
@@ -256,7 +295,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         model::M,
         X::AbstractDataFrame,
         y::AbstractVector,
-        train_rows::AbstractVector{Int};
+        train_rows::AbstractVector{Int}; # for defining data transformations
         features = Symbol[]) where {P, M <: SupervisedModel{P}}
 
         # check dimension match:
@@ -291,7 +330,6 @@ function Base.show(stream::IO, mach::SupervisedMachine)
     type_string = string("SupervisedMachine{", typeof(mach.model).name.name, "}")
     print(stream, type_string, "@", abbreviated(hash(mach)))
 end
-
 
 function Base.showall(stream::IO, mach::SupervisedMachine)
     show(stream, mach)
@@ -369,9 +407,41 @@ predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
 
-## `ConstantRegressor` 
+## Univariate Standardization (`Transformer` example)
+    
+struct UnivariateStandardizer <: Transformer end
 
-# to test iterative methods, we give the following simple regressor
+function fit(transformer::UnivariateStandardizer, v::AbstractVector{T},
+             parallel, verbosity) where T <: Real
+    return  mean(v), std(v)
+end
+
+# for transforming single value:
+function transform(transformer::UnivariateStandardizer, scheme, x::Real)
+    mu, sigma = scheme
+    return (x - mu)/sigma
+end
+
+# for transforming vector:
+transform(transformer::UnivariateStandardizer, scheme,
+          v::AbstractVector{T}) where T <: Real =
+              [transform(transformer, scheme, x) for x in v]
+
+# for single values:
+function inverse_transform(transformer::UnivariateStandardizer, scheme, y::Real)
+    mu, sigma = scheme
+    return mu + y*sigma
+end
+
+# for vectors:
+inverse_transform(transformer::UnivariateStandardizer, scheme,
+                  w::AbstractVector{T}) where T <: Real =
+                      [inverse_transform(transformer, scheme, y) for y in w]
+
+
+## Constant-predicting regressor (a `Regressor` example)
+
+# Note: To test iterative methods, we give the following simple regressor
 # model a "bogus" field for counting the number of iterations (which
 # make no difference to predictions):
 mutable struct ConstantRegressor <: Regressor{Float64}
@@ -405,7 +475,7 @@ function predict(rgs::ConstantRegressor, predictor, X, parallel, verbosity)
     return  Float64[predictor for i in 1:size(X,1)]
 end
 
-
+    
 ## Validation tools
 
 """
