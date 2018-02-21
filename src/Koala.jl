@@ -159,21 +159,36 @@ end
 
 ## Abstract model and machine types
 
-# "models" simply store algorithm hyperparameters (eg, a
-# regularization parameter); "machines" wrap models, data,
-# transformation rules ("schemes") and predictors together.
-
+# Here *models* are simply small data structures storing parameters
+# describing *what* is to be done with some data (rather than *how*
+# this is to be done). For example, a learning task may involve
+# one-hot encoding the categorical features of some input patterns,
+# standardizing the corresonding target values, and training a tree
+# gradient booster on that data. The model parameters will then
+# involve flags describing the transformations required, and
+# parameters such as the degree of L2 regularization of the booster
+# weights.
 abstract type Model <: BaseType end 
 
-# supervised model types are collected together according to their
-# corresponding predictor type, `P`:
+# Supervised model types are collected together according to their
+# corresponding predictor type, `P`. For example, we later prescribe
+# `ConstantRegressor <: SupervisedModel{Float64}`. One reason for this
+# is that ensemble methods involve ensembles of predictors whose type
+# should be known ahead of time.
 abstract type SupervisedModel{P} <: Model end
-
-# so, for example, we later prescribe `ConstantRegressor <: SupervisedModel{Float64}`
-
 abstract type Regressor{P} <: SupervisedModel{P} end
-abstract type Classifier{P} <: SupervisedModel{P} end 
+abstract type Classifier{P} <: SupervisedModel{P} end
 
+# Similar remarks apply to transformer model types; see the
+# `KoalaTransformers` module.
+
+# A *machine* is a larger structure wrapping around the model extra
+# data needed to carry out, at various stages, the learning
+# task. Certain parameters of the model will have to be tuned during
+# training and we call these *hyperparameters*. If a preliminary part
+# of the learning task (eg one-hot encoding categoricals) does not
+# depend on the values of hyperparameters, then these tasks will be
+# performed already during the machine's construction (instantiation).
 abstract type Machine <: BaseType end
 
 
