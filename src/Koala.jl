@@ -4,8 +4,11 @@ module Koala
 # new: 
 export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
-export fit!, predict, rms, rmsl, err
+export fit!, predict, rms, rmsl, err, transform, inverse_transform
 export SupervisedMachine, ConstantRegressor
+export TransformerMachine, IdentityTransformer, FeatureTruncater
+export DataFrameToArrayTransformer
+export Machine
 export splitrows, learning_curve, cv, @colon, @curve, @pcurve
 
 # for use in this module:
@@ -23,10 +26,8 @@ function predict end
 function setup end
 function transform end
 function inverse_transform end
-function get_scheme_X end
-function get_schme_y end
-function fit! end
-
+function get_transformer_X end
+function get_transformer_y end
 
 ## Some general assorted helpers:
 
@@ -268,6 +269,9 @@ end
 TransformerMachine(transformer::T, X; args...) where T <: Transformer =
     TransformerMachine{T}(transformer, X; args...)
 
+Machine(transformer::Transformer, X; args...) =
+    TransformerMachine(transformer, X; args...)
+
 function transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
     return transform(mach.transformer, mach.scheme, X)
 end
@@ -277,11 +281,56 @@ function inverse_transform(mach::TransformerMachine, X; parallel=true, verbosity
 end
 
 
+## Commonly used transformers
+
+# for truncating features:
+struct FeatureTruncater <: Transformer
+    features::Vector{Symbol} # empty means use all
+end
+FeatureTruncater(;features=Symbol[]) = FeatureTruncater(features)
+function fit(transformer::FeatureTruncater, X, parallel, verbosity)
+    if isempty(transformer.features)
+        return names(X)
+    else
+        return transformer.features
+    end
+end
+function transform(transformer::FeatureTruncater, scheme, X)
+    issubset(Set(scheme), Set(names(X))) || throw(DomainError)
+    return X[scheme]
+end 
+
+# for truncating features and outputing converting data frame to Float64 Array:
+struct DataFrameToArrayTransformer <: Transformer
+    features::Vector{Symbol} # empty means use all
+end
+DataFrameToArrayTransformer(;features=Symbol[]) = DataFrameToArrayTransformer(features)
+function fit(transformer::DataFrameToArrayTransformer, X, parallel, verbosity)
+    if isempty(transformer.features)
+        return names(X)
+    else
+        return transformer.features
+    end
+end
+function transform(transformer::DataFrameToArrayTransformer, scheme, X)
+    issubset(Set(scheme), Set(names(X))) || throw(DomainError)
+    return convert(Array{Float64}, X[scheme])
+end 
+
+# identity transformations:
+struct IdentityTransformer <: Transformer end
+fit(transformer::IdentityTransformer, y, parallel, verbosity) = nothing
+transform(transformer::IdentityTransformer, scheme, y) = y
+inverse_transform(transformer::IdentityTransformer, scheme, y) = y
+
+
 ## Machines for supervised learning
 
 mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
 
     model::M
+    transformer_X::Transformer
+    transformer_y::Transformer
     scheme_X
     scheme_y
     n_iter::Int
@@ -308,22 +357,28 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         allunique(features) || error("Duplicate features.")
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
 
-        ret = new{P, M}(model::M)
-        ret.scheme_X = get_scheme_X(model, X, train_rows, features)
-        ret.scheme_y = get_scheme_y(model, y, train_rows)
-        ret.n_iter = 0
-        ret.Xt = transform(model, ret.scheme_X, X)
-        ret.yt = transform(model, ret.scheme_y, y)
-        ret.report = Dict{Symbol,Any}()
+        mach = new{P, M}(model::M)
+        mach.transformer_X = get_transformer_X(model)
+        mach.transformer_y = get_transformer_y(model)
+        mach.scheme_X = fit(mach.transformer_X, X[train_rows, features], true, 1)
+        mach.scheme_y = fit(mach.transformer_y, y[train_rows], true, 1)
+        mach.Xt = transform(mach.transformer_X, mach.scheme_X, X)
+        mach.yt = transform(mach.transformer_y, mach.scheme_y, y)
+        mach.n_iter = 0
+        mach.report = Dict{Symbol,Any}()
 
-        return ret
+        return mach
     end
 
 end
 
-function SupervisedMachine(model::M, X, y, train_rows; args...) where {P, M <: SupervisedModel{P}}
+function SupervisedMachine(model::M, X, y,
+                           train_rows; args...) where {P, M <: SupervisedModel{P}}
     return SupervisedMachine{P, M}(model, X, y, train_rows; args...)
 end
+
+Machine(model::SupervisedModel, X, y, train_rows; args...) =
+    SupervisedMachine(model, X, y, train_rows; args...)
 
 function Base.show(stream::IO, mach::SupervisedMachine)
     abbreviated(n) = "..."*string(n)[end-2:end]
@@ -367,16 +422,16 @@ end
 
 function predict(mach::SupervisedMachine, X, rows; parallel=true, verbosity=1)
     mach.n_iter > 0 || error(string(mach, " has not been fitted."))
-    Xt = transform(mach.model, mach.scheme_X, X[rows,:])
+    Xt = transform(mach.transformer_X, mach.scheme_X, X[rows,:])
     yt = predict(mach.model, mach.predictor, Xt, parallel, verbosity)
-    return inverse_transform(mach.model, mach.scheme_y, yt)
+    return inverse_transform(mach.transformer_y, mach.scheme_y, yt)
 end
 
 function predict(mach::SupervisedMachine, X; parallel=true, verbosity=1)
     mach.n_iter > 0 || error(string(mach, " has not been fitted."))
-    Xt = transform(mach.model, mach.scheme_X, X)
+    Xt = transform(mach.transformer_X, mach.scheme_X, X)
     yt = predict(mach.model, mach.predictor, Xt, parallel, verbosity)
-    return inverse_transform(mach.model, mach.scheme_y, yt)
+    return inverse_transform(mach.transformer_y, mach.scheme_y, yt)
 end
 
 function err(mach::SupervisedMachine, test_rows;
@@ -392,73 +447,36 @@ function err(mach::SupervisedMachine, test_rows;
     if raw # return error on *transformed* target, which is faster
         return loss(raw_predictions, mach.yt[test_rows])
     else  # return error for untransformed target
-        return loss(inverse_transform(mach.model, mach.scheme_y, raw_predictions),
-                    inverse_transform(mach.model, mach.scheme_y, mach.yt[test_rows]))
+        return loss(inverse_transform(mach.transformer_y, mach.scheme_y, raw_predictions),
+           inverse_transform(mach.transformer_y, mach.scheme_y, mach.yt[test_rows]))
     end
 end
 
 
 ## `SupervisedModel`  fall-back methods
 
-# for when rows are left out:
+# default transformers:
+get_transformer_X(model::SupervisedModel) = FeatureTruncater()
+get_transformer_y(model::SupervisedModel) = IdentityTransformer()
+
+# to allow for extra rows argument:
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
     setup(model, Xt[rows,:], yt[rows], scheme_X, parallel, verbosity) 
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
 
-## Univariate Standardization (`Transformer` example)
-    
-struct UnivariateStandardizer <: Transformer end
-
-function fit(transformer::UnivariateStandardizer, v::AbstractVector{T},
-             parallel, verbosity) where T <: Real
-    return  mean(v), std(v)
-end
-
-# for transforming single value:
-function transform(transformer::UnivariateStandardizer, scheme, x::Real)
-    mu, sigma = scheme
-    return (x - mu)/sigma
-end
-
-# for transforming vector:
-transform(transformer::UnivariateStandardizer, scheme,
-          v::AbstractVector{T}) where T <: Real =
-              [transform(transformer, scheme, x) for x in v]
-
-# for single values:
-function inverse_transform(transformer::UnivariateStandardizer, scheme, y::Real)
-    mu, sigma = scheme
-    return mu + y*sigma
-end
-
-# for vectors:
-inverse_transform(transformer::UnivariateStandardizer, scheme,
-                  w::AbstractVector{T}) where T <: Real =
-                      [inverse_transform(transformer, scheme, y) for y in w]
-
-
 ## Constant-predicting regressor (a `Regressor` example)
 
 # Note: To test iterative methods, we give the following simple regressor
-# model a "bogus" field for counting the number of iterations (which
+# model a "bogus" field `n` for counting the number of iterations (which
 # make no difference to predictions):
+
 mutable struct ConstantRegressor <: Regressor{Float64}
     n::Int 
 end
 
 ConstantRegressor() = ConstantRegressor(1)
-
-get_scheme_X(model::ConstantRegressor, X, train_rows, features) = features
-
-get_scheme_y(model::ConstantRegressor, y, train_rows) = nothing
-
-transform(model::ConstantRegressor, features, X) = X[features]
-
-transform(model::ConstantRegressor, no_thing::Void, y) = y
-
-inverse_transform(model::ConstantRegressor, no_thing::Void, yt) = yt
 
 function setup(rgs::ConstantRegressor, X, y, scheme_X, parallel, verbosity)
     return mean(y)
