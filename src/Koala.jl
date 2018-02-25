@@ -406,13 +406,13 @@ function Base.show(stream::IO, mach::SupervisedMachine)
 end
 
 function Base.showall(stream::IO, mach::SupervisedMachine)
-    dict = params(mach)
-    report_items = sort(collect(keys(dict[:report])))
-    dict[:report] = "Dict with keys: $report_items"
-    dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
-    dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
-    delete!(dict, :cache)
-    showall(stream, mach, dict)
+    dic = params(mach)
+    report_items = sort(collect(keys(dic[:report])))
+    dic[:report] = "Dic with keys: $report_items"
+    dic[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
+    dic[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
+    delete!(dic, :cache)
+    showall(stream, mach, dic=dic)
     println(stream, "\nModel detail:")
     showall(stream, mach.model)
 end
@@ -454,6 +454,8 @@ end
 function err(mach::SupervisedMachine, test_rows;
              loss=rms, parallel=false, verbosity=0, raw=false, suppress_warning=false)
 
+    mach.n_iter > 0 || error("Attempting to predict using untrained machine.")
+
     !raw || suppress_warning || warn("Reporting errors for *transformed* target. "*
                                     "Use `raw=false` to report true errors.")
 
@@ -476,7 +478,7 @@ end
 get_transformer_X(model::SupervisedModel) = FeatureTruncater()
 get_transformer_y(model::SupervisedModel) = IdentityTransformer()
 
-# to allow for extra rows argument:
+# to allow for extra `rows` argument:
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
     setup(model, Xt[rows,:], yt[rows], scheme_X, parallel, verbosity) 
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
