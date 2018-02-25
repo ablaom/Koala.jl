@@ -150,11 +150,23 @@ function Base.show(stream::IO, object::BaseType)
                          "@", abbreviated(hash(object))))
 end
 
-""" Output detailed plain/text representation to specified stream. """
-function Base.showall(stream::IO, object::BaseType)
+""" 
+Output detailed plain/text representation to specified stream. If
+`dic` is unspecified then the parameter dictionary (ie dictionary
+keyed on `object`'s fields) is displayed .To display an altered
+dictionary for some subtype of `BaseType` overload the two-argument
+version of this method and call *this* method with the altered
+dictionary.
+
+"""
+function Base.showall(stream::IO, object::BaseType;
+                      dic::Dict{Symbol,Any}=Dict{Symbol,Any}())
+    if isempty(dic)
+        dic = params(object)
+    end
     show(stream, object)
     println(stream)
-    showall(stream, params(object))
+    showall(stream, dic)
 end
 
 
@@ -272,6 +284,13 @@ TransformerMachine(transformer::T, X; args...) where T <: Transformer =
 Machine(transformer::Transformer, X; args...) =
     TransformerMachine(transformer, X; args...)
 
+function Base.showall(stream::IO, mach::TransformerMachine)
+    dict = params(mach)
+    showall(stream, mach, dic=dict)
+    println(stream, "\nModel detail:")
+    showall(stream, mach.transformer)
+end
+
 function transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
     return transform(mach.transformer, mach.scheme, X)
 end
@@ -387,15 +406,13 @@ function Base.show(stream::IO, mach::SupervisedMachine)
 end
 
 function Base.showall(stream::IO, mach::SupervisedMachine)
-    show(stream, mach)
-    println(stream)
     dict = params(mach)
     report_items = sort(collect(keys(dict[:report])))
     dict[:report] = "Dict with keys: $report_items"
     dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
     dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
     delete!(dict, :cache)
-    showall(stream, dict)
+    showall(stream, mach, dict)
     println(stream, "\nModel detail:")
     showall(stream, mach.model)
 end
