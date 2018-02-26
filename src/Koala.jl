@@ -7,7 +7,7 @@ export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, err, transform, inverse_transform
 export SupervisedMachine, ConstantRegressor
 export TransformerMachine, IdentityTransformer, FeatureTruncater
-export DataFrameToArrayTransformer
+export default_transformer_X, default_transformer_y
 export Machine
 export splitrows, learning_curve, cv, @colon, @curve, @pcurve
 
@@ -15,6 +15,9 @@ export splitrows, learning_curve, cv, @colon, @curve, @pcurve
 import DataFrames: DataFrame, AbstractDataFrame, names
 import CSV
 import StatsBase: sample
+
+# extended in this module:
+import Base: show, showall, isempty
 
 # constants:
 const COLUMN_WIDTH = 24 # for displaying dictionaries with `showall`
@@ -26,8 +29,8 @@ function predict end
 function setup end
 function transform end
 function inverse_transform end
-function get_transformer_X end
-function get_transformer_y end
+function default_transformer_X end
+function default_transformer_y end
 
 ## Some general assorted helpers:
 
@@ -302,8 +305,16 @@ end
 
 ## Commonly used transformers
 
+# a null transformer, useful as default keyword argument
+# (has no fit, transform or inverse_transform methods):
+struct NullTransformer <: Transformer end
+
+# no transformer is empty except the null transformer:
+Base.isempty(transformer::Transformer) = false
+Base.isempty(transformer::NullTransformer) = true
+
 # for truncating features:
-struct FeatureTruncater <: Transformer
+mutable struct FeatureTruncater <: Transformer
     features::Vector{Symbol} # empty means use all
 end
 FeatureTruncater(;features=Symbol[]) = FeatureTruncater(features)
@@ -317,23 +328,6 @@ end
 function transform(transformer::FeatureTruncater, scheme, X)
     issubset(Set(scheme), Set(names(X))) || throw(DomainError)
     return X[scheme]
-end 
-
-# for truncating features and outputing converting data frame to Float64 Array:
-struct DataFrameToArrayTransformer <: Transformer
-    features::Vector{Symbol} # empty means use all
-end
-DataFrameToArrayTransformer(;features=Symbol[]) = DataFrameToArrayTransformer(features)
-function fit(transformer::DataFrameToArrayTransformer, X, parallel, verbosity)
-    if isempty(transformer.features)
-        return names(X)
-    else
-        return transformer.features
-    end
-end
-function transform(transformer::DataFrameToArrayTransformer, scheme, X)
-    issubset(Set(scheme), Set(names(X))) || throw(DomainError)
-    return convert(Array{Float64}, X[scheme])
 end 
 
 # identity transformations:
@@ -364,21 +358,31 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         X::AbstractDataFrame,
         y::AbstractVector,
         train_rows::AbstractVector{Int}; # for defining data transformations
-        features = Symbol[]) where {P, M <: SupervisedModel{P}}
+        features = Symbol[],
+        transformer_X=NullTransformer(),
+        transformer_y=NullTransformer()) where {P, M <: SupervisedModel{P}}
 
         # check dimension match:
         size(X,1) == length(y) || throw(DimensionMismatch())
 
-        # check valid `features`; if empty take all
+        # check valid `features`; if none provided, take to be all
         if isempty(features)
             features = names(X)
         end
         allunique(features) || error("Duplicate features.")
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
 
+        # assign transformers if not provided:
+        if isempty(transformer_X)
+            transformer_X = default_transformer_X(model)
+        end
+        if isempty(transformer_y)
+            transformer_y = default_transformer_y(model)
+        end            
+
         mach = new{P, M}(model::M)
-        mach.transformer_X = get_transformer_X(model)
-        mach.transformer_y = get_transformer_y(model)
+        mach.transformer_X = transformer_X
+        mach.transformer_y = transformer_y
         mach.scheme_X = fit(mach.transformer_X, X[train_rows, features], true, 1)
         mach.scheme_y = fit(mach.transformer_y, y[train_rows], true, 1)
         mach.Xt = transform(mach.transformer_X, mach.scheme_X, X)
@@ -474,9 +478,9 @@ end
 
 ## `SupervisedModel`  fall-back methods
 
-# default transformers:
-get_transformer_X(model::SupervisedModel) = FeatureTruncater()
-get_transformer_y(model::SupervisedModel) = IdentityTransformer()
+# default default_transformers:
+default_transformer_X(model::SupervisedModel) = FeatureTruncater()
+default_transformer_y(model::SupervisedModel) = IdentityTransformer()
 
 # to allow for extra `rows` argument:
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =

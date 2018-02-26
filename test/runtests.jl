@@ -12,16 +12,12 @@ bootstrap_resample_of_mean(randn(100))
 X, y = load_boston();
 train, test = splitrows(eachindex(y), 0.8); # 80:20 split
 
-transformer = FeatureTruncater(features=[:Indus, :Chas])
+transformer = Koala.FeatureTruncater(features=[:Indus, :Chas])
 transformerM = Machine(transformer, X)
 @test transform(transformerM, X) == X[[:Indus, :Chas]]
 
-transformer = DataFrameToArrayTransformer(features=[:Indus, :Chas])
-transformerM = Machine(transformer, X)
-@test transform(transformerM, X) == Array(X[[:Indus, :Chas]])
-
 rgs = ConstantRegressor()
-mach = Machine(rgs, X, y, train)
+mach = Machine(rgs, X, y, train, transformer_X=transformer)
 showall(mach)
 fit!(mach, train)
 score = err(mach, test)
