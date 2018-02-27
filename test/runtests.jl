@@ -22,6 +22,7 @@ showall(mach)
 fit!(mach, train)
 score = err(mach, test)
 println("score = $score")
+fit!(mach) # fit again without recomputing cache
 @test 9.5 < score && 9.6 > score
 
 @test score == err(mach, test, raw=true)

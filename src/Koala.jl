@@ -290,8 +290,10 @@ Machine(transformer::Transformer, X; args...) =
 function Base.showall(stream::IO, mach::TransformerMachine)
     dict = params(mach)
     showall(stream, mach, dic=dict)
-    println(stream, "\nModel detail:")
+    println(stream, "\n## Model detail:")
     showall(stream, mach.transformer)
+    println(stream, "\n##Scheme detail:")
+    showall(stream, mach.scheme)
 end
 
 function transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
@@ -417,7 +419,7 @@ function Base.showall(stream::IO, mach::SupervisedMachine)
     dic[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
     delete!(dic, :cache)
     showall(stream, mach, dic=dic)
-    println(stream, "\nModel detail:")
+    println(stream, "\n## Model detail:")
     showall(stream, mach.model)
 end
 
@@ -429,6 +431,28 @@ function fit!(mach::SupervisedMachine, rows;
     if  mach.n_iter == 0 
         mach.cache = setup(mach.model, mach.Xt, mach.yt, rows, mach.scheme_X,
                            parallel, verbosity)
+    end
+    mach.predictor, report, mach.cache =
+        fit(mach.model, mach.cache, add, parallel, verbosity; args...)
+    merge!(mach.report, report)
+    if isdefined(mach.model, :n)
+        mach.n_iter += mach.model.n
+    else
+        mach.n_iter = 1
+    end
+    return mach
+end
+
+# When rows are not specified, the cache is not recalculated. Ie, `setup` is skipped:
+function fit!(mach::SupervisedMachine;
+              add=false, verbosity=1, parallel=true, args...)
+
+    if !isdefined(mach, :cache)
+        error("You must specify training rows in the first call to fit!\n"*
+              "E.g., fit!(mach, train_rows).")
+    end
+    if !add
+        mach.n_iter = 0
     end
     mach.predictor, report, mach.cache =
         fit(mach.model, mach.cache, add, parallel, verbosity; args...)
