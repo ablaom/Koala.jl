@@ -10,9 +10,9 @@ dict["a"] = 1
 bootstrap_resample_of_mean(randn(100))
 
 X, y = load_boston();
-train, test = splitrows(eachindex(y), 0.8); # 80:20 split
+train, test = split(eachindex(y), 0.8); # 80:20 split
 
-transformer = Koala.FeatureTruncater(features=[:Indus, :Chas])
+transformer = Koala.FeatureSelector(features=[:Indus, :Chas])
 transformerM = Machine(transformer, X)
 @test transform(transformerM, X) == X[[:Indus, :Chas]]
 

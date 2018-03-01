@@ -6,10 +6,10 @@ export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, err, transform, inverse_transform
 export SupervisedMachine, ConstantRegressor
-export TransformerMachine, IdentityTransformer, FeatureTruncater
+export TransformerMachine, IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y
 export Machine
-export splitrows, learning_curve, cv, @colon, @curve, @pcurve
+export learning_curve, cv, @colon, @curve, @pcurve
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names
@@ -17,7 +17,7 @@ import CSV
 import StatsBase: sample
 
 # extended in this module:
-import Base: show, showall, isempty
+import Base: show, showall, isempty, split
 
 # constants:
 const COLUMN_WIDTH = 24 # for displaying dictionaries with `showall`
@@ -309,25 +309,27 @@ end
 
 # a null transformer, useful as default keyword argument
 # (has no fit, transform or inverse_transform methods):
-struct NullTransformer <: Transformer end
+struct EmptyTransformer <: Transformer end
 
 # no transformer is empty except the null transformer:
 Base.isempty(transformer::Transformer) = false
-Base.isempty(transformer::NullTransformer) = true
+Base.isempty(transformer::EmptyTransformer) = true
 
-# for truncating features:
-mutable struct FeatureTruncater <: Transformer
-    features::Vector{Symbol} # empty means use all
+# for (a) remembering the features used in `fit` (calibration) and
+# selecting only those on tranforming new data frames; or (b) select only
+# feature labels specified in the tranformer:
+mutable struct FeatureSelector <: Transformer
+    features::Vector{Symbol} # empty means do (a) above
 end
-FeatureTruncater(;features=Symbol[]) = FeatureTruncater(features)
-function fit(transformer::FeatureTruncater, X, parallel, verbosity)
+FeatureSelector(;features=Symbol[]) = FeatureSelector(features)
+function fit(transformer::FeatureSelector, X, parallel, verbosity)
     if isempty(transformer.features)
         return names(X)
     else
         return transformer.features
     end
 end
-function transform(transformer::FeatureTruncater, scheme, X)
+function transform(transformer::FeatureSelector, scheme, X)
     issubset(Set(scheme), Set(names(X))) || throw(DomainError)
     return X[scheme]
 end 
@@ -361,8 +363,9 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         y::AbstractVector,
         train_rows::AbstractVector{Int}; # for defining data transformations
         features = Symbol[],
-        transformer_X=NullTransformer(),
-        transformer_y=NullTransformer()) where {P, M <: SupervisedModel{P}}
+        transformer_X=EmptyTransformer(),
+        transformer_y=EmptyTransformer(),
+        verbosity::Int=1) where {P, M <: SupervisedModel{P}}
 
         # check dimension match:
         size(X,1) == length(y) || throw(DimensionMismatch())
@@ -385,8 +388,9 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         mach = new{P, M}(model::M)
         mach.transformer_X = transformer_X
         mach.transformer_y = transformer_y
-        mach.scheme_X = fit(mach.transformer_X, X[train_rows, features], true, 1)
-        mach.scheme_y = fit(mach.transformer_y, y[train_rows], true, 1)
+        mach.scheme_X = fit(mach.transformer_X, X[train_rows, features],
+                            true, verbosity - 1)
+        mach.scheme_y = fit(mach.transformer_y, y[train_rows], verbosity - 1, 1)
         mach.Xt = transform(mach.transformer_X, mach.scheme_X, X)
         mach.yt = transform(mach.transformer_y, mach.scheme_y, y)
         mach.n_iter = 0
@@ -484,7 +488,7 @@ function err(mach::SupervisedMachine, test_rows;
 
     mach.n_iter > 0 || error("Attempting to predict using untrained machine.")
 
-    !raw || suppress_warning || warn("Reporting errors for *transformed* target. "*
+    !raw || verbosity < 0 || warn("Reporting errors for *transformed* target. "*
                                     "Use `raw=false` to report true errors.")
 
     # transformed version of target predictions:
@@ -503,7 +507,7 @@ end
 ## `SupervisedModel`  fall-back methods
 
 # default default_transformers:
-default_transformer_X(model::SupervisedModel) = FeatureTruncater()
+default_transformer_X(model::SupervisedModel) = FeatureSelector()
 default_transformer_y(model::SupervisedModel) = IdentityTransformer()
 
 # to allow for extra `rows` argument:
@@ -544,19 +548,18 @@ end
 ## Validation tools
 
 """
-## splitrows(rows, fractions...)
+## split(rows::AbstractVector{Int}, fractions...)
 
-Assumes (but does not check) that `collect(rows)` has integer
-eltype. Then splits rows into a tuple of `Vector{Int}` objects whose
-lengths are given by the corresponding `fractions` of
-`length(rows)`. The last fraction is not actually be provided, as
-it is inferred from the preceding ones. So, for example,
+Then splits the vector `rows` into a tuple of `Vector{Int}` objects
+whose lengths are given by the corresponding `fractions` of
+`length(rows)`. The last fraction is not provided, as it
+is inferred from the preceding ones. So, for example,
 
-    julia> splitrows(1:1000, 0.2, 0.7)
+    julia> split(1:1000, 0.2, 0.7)
     (1:200, 201:900, 901:1000)
 
 """
-function splitrows(rows, fractions...)
+function Base.split(rows::AbstractVector{Int}, fractions...)
     rows = collect(rows)
     rowss = []
     if sum(fractions) >= 1
@@ -566,12 +569,12 @@ function splitrows(rows, fractions...)
     first = 1
     for p in fractions
         n = round(Int, p*n_patterns)
-        n == 0 ? (Base.warn("Rows with only one element"); n = 1) : nothing
+        n == 0 ? (Base.warn("A split has only one element"); n = 1) : nothing
         push!(rowss, rows[first:(first + n - 1)])
         first = first + n
     end
     if first > n_patterns
-        Base.warn("Last vector in split has only one element.")
+        Base.warn("Last vector in the split has only one element.")
         first = n_patterns
     end
     push!(rowss, rows[first:n_patterns])
@@ -580,7 +583,7 @@ end
 
 """
 ## `function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
-##                      range; restart=true, loss=rms, raw=true, parallel=true,
+##                      range; restart=true, loss=rms, raw=false, parallel=true,
 ##                      verbosity=1, fit_args...)`
 
     u,v = learning_curve(mach, test_rows, 1:10:200)
@@ -597,7 +600,7 @@ supports.
 
 """
 function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
-                        range; restart=true, loss=rms, raw=true, parallel=true,
+                        range; restart=true, loss=rms, raw=false, parallel=true,
                         verbosity=1, fit_args...) 
 
     isdefined(mach.model, :n) || error("$(mach.model) does not support iteration.")
@@ -605,8 +608,9 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
     # save to be reset at end:
     old_n = mach.model.n
     
-    !raw || warn("Reporting errors for *transformed* target. Use `raw=false` "*
-                 " to report true errors.")
+    !raw || verbosity < 0 ||
+        warn("Reporting errors for *transformed* target. Use `raw=false` "*
+             " to report true errors.")
     
     range = collect(range)
     sort!(range)
@@ -628,8 +632,13 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
         verbosity < 1 || print("\rNext iteration number: ", range[1]) 
         # set number of iterations for `fit` call:
         mach.model.n = range[1] - mach.n_iter
-        mach.predictor, report, mach.cache =
-            fit(mach.model, mach.cache, true, parallel, verbosity - 1; fit_args...)
+        if mach.n_iter == 0 # then use add=false
+            mach.predictor, report, mach.cache =
+                fit(mach.model, mach.cache, false, parallel, verbosity - 1; fit_args...)
+        else # use add=true
+            mach.predictor, report, mach.cache =
+                fit(mach.model, mach.cache, true, parallel, verbosity - 1; fit_args...)
+        end
         mach.n_iter += mach.model.n
         push!(n_iter_list, mach.n_iter)
         push!(errors, err(mach, test_rows, raw=raw, loss=loss))
@@ -659,8 +668,9 @@ randomized when an optional parameter `randomize` is set to `true`.
 function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
              parallel=true, verbosity=1, raw=false, randomize=false)
 
-    !raw || warn("Reporting errors for *transformed* target. Use `raw=false` "*
-                 " to report true errors.")
+    !raw || verbosity < 0 ||
+        warn("Reporting errors for *transformed* target. Use `raw=false` "*
+             " to report true errors.")
 
     n_samples = length(rows)
     if randomize
