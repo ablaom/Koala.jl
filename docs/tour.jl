@@ -1,4 +1,4 @@
-## Demonstration of basic usage
+## DEMONSTRATION OF BASIC USAGE
 
 # Load the basic Koala toolset:
 using Koala
@@ -22,7 +22,7 @@ using KoalaTrees
 tree = TreeRegressor()
 
 # Here `tree` is just a `mutable struct` storing the parameters
-# specifying how we should train a Light Gradient Boosting Machine:
+# specifying how we should train a single tree regressor:
 showall(tree)
 
 # Construct a "machine" from the model, which wraps the model in
@@ -115,7 +115,7 @@ println("95% confidence interval for error = ", mean(errs), " ± ", 2*std(errs))
 err(treeM, test)
 
 
-## Ensemble models
+## ENSEMBLE MODELS
 
 # Build an ensemble of `RegressorTree` models, :
 using KoalaEnsembles
