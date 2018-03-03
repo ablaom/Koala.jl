@@ -14,7 +14,7 @@ For an introductory tour, clone the repositories and run [this code](docs/tour.j
 
 [KoalaEnsembles](https://github.com/ablaom/KoalaEnsembles.jl): Build weighted ensemble learners (e.g., random forests, extreme random forests)
 
-[KoalaLightGBM](https://github.com/ablaom/KoalaLightGBM.jl): A Koala wrap of Microsoft's tgradient tree boosting (algorithm)(https://github.com/Microsoft/LightGBM)]
+[KoalaLightGBM](https://github.com/ablaom/KoalaLightGBM.jl): A Koala wrap of Microsoft's tgradient tree boosting [algorithm](https://github.com/Microsoft/LightGBM)]
 
 [KoalaElasticNet](https://github.com/ablaom/KoalaElasticNet.jl): The elastic net and lasso linear predictors
 
