@@ -4,7 +4,7 @@ module Koala
 # new: 
 export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
-export fit!, predict, rms, rmsl, err, transform, inverse_transform
+export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
 export SupervisedMachine, ConstantRegressor
 export TransformerMachine, IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y
@@ -236,6 +236,24 @@ function rmsl(y, yhat)
     ret = 0.0
     for i in eachindex(y)
         ret += (log(y[i]) - log(yhat[i]))^2
+    end
+    return sqrt(ret/length(y))
+end
+
+function rmslp1(y, yhat, rows)
+    length(y) == length(yhat) || throw(DimensionMismatch())
+    ret = 0.0
+    for i in rows
+        ret += (log(y[i] + 1) - log(yhat[i] + 1))^2
+    end
+    return sqrt(ret/length(rows))
+end
+
+function rmslp1(y, yhat)
+    length(y) == length(yhat) || throw(DimensionMismatch())
+    ret = 0.0
+    for i in eachindex(y)
+        ret += (log(y[i] + 1) - log(yhat[i] + 1))^2
     end
     return sqrt(ret/length(y))
 end
