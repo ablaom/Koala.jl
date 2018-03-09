@@ -7,7 +7,7 @@ export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
 export SupervisedMachine, ConstantRegressor
 export TransformerMachine, IdentityTransformer, FeatureSelector
-export default_transformer_X, default_transformer_y
+export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, @colon, @curve, @pcurve
 
@@ -447,6 +447,7 @@ end
 
 function fit!(mach::SupervisedMachine, rows;
               add=false, verbosity=1, parallel=true, args...)
+    verbosity < 0 || print(clean!(mach.model))
     if !add
         mach.n_iter = 0
     end
@@ -465,10 +466,11 @@ function fit!(mach::SupervisedMachine, rows;
     return mach
 end
 
-# When rows are not specified, the cache is not recalculated. Ie, `setup` is skipped:
+# When rows are not specified, the cache is not recalculated. Ie,
+# `setup` is skipped:
 function fit!(mach::SupervisedMachine;
               add=false, verbosity=1, parallel=true, args...)
-
+    verbosity < 0 || print(clean!(mach.model))
     if !isdefined(mach, :cache)
         error("You must specify training rows in the first call to fit!\n"*
               "E.g., fit!(mach, train_rows).")
@@ -528,7 +530,10 @@ end
 default_transformer_X(model::SupervisedModel) = FeatureSelector()
 default_transformer_y(model::SupervisedModel) = IdentityTransformer()
 
-# to allow for extra `rows` argument:
+# for enforcing model parameter invariants:
+clean!(model::SupervisedModel) = "" # no checks, emtpy message
+
+# to allow for an extra `rows` argument (depreceate?):
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
     setup(model, Xt[rows,:], yt[rows], scheme_X, parallel, verbosity) 
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
