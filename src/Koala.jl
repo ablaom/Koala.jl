@@ -141,7 +141,7 @@ end
 
 """ Output plain/text representation to specified stream. """
 function Base.show(stream::IO, object::BaseType)
-    abbreviated(n) = "..."*string(n)[end-2:end]
+    abbreviated(n) = "…"*string(n)[end-2:end]
     type_params = type_parameters(object)
     if isempty(type_params)
         type_string = ""
