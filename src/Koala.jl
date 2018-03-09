@@ -41,6 +41,13 @@ macro more()
     end)
 end
 
+""" a version of warn that only warns given a non-empty string."""
+function softwarn(str)
+    if !isempty(str)
+        warn(str)
+    end
+end
+    
 """Load a well-known public regression dataset with nominal features."""
 function load_boston()
     df = CSV.read(joinpath(srcdir, "data", "Boston.csv"))
@@ -447,7 +454,7 @@ end
 
 function fit!(mach::SupervisedMachine, rows;
               add=false, verbosity=1, parallel=true, args...)
-    verbosity < 0 || print(clean!(mach.model))
+    verbosity < 0 || softwarn(clean!(mach.model))
     if !add
         mach.n_iter = 0
     end
@@ -470,7 +477,7 @@ end
 # `setup` is skipped:
 function fit!(mach::SupervisedMachine;
               add=false, verbosity=1, parallel=true, args...)
-    verbosity < 0 || print(clean!(mach.model))
+    verbosity < 0 || softwarn(clean!(mach.model))
     if !isdefined(mach, :cache)
         error("You must specify training rows in the first call to fit!\n"*
               "E.g., fit!(mach, train_rows).")
@@ -504,7 +511,7 @@ function predict(mach::SupervisedMachine, X; parallel=true, verbosity=1)
 end
 
 function err(mach::SupervisedMachine, test_rows;
-             loss=rms, parallel=false, verbosity=0, raw=false, suppress_warning=false)
+             loss=rms, parallel=false, verbosity=0, raw=false)
 
     mach.n_iter > 0 || error("Attempting to predict using untrained machine.")
 
@@ -708,7 +715,7 @@ function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
         fit!(mach, train_rows; parallel=false, verbosity=0)
         return err(mach, test_rows;
                    parallel=false, verbosity=verbosity - 1,
-                   raw=raw, suppress_warning=true)
+                   raw=raw)
     end
 
     firsts = 1:k:((n_folds - 1)*k + 1) # itr of first test_rows index
