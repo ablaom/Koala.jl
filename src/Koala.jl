@@ -315,7 +315,7 @@ Machine(transformer::Transformer, X; args...) =
 function Base.showall(stream::IO, mach::TransformerMachine)
     dict = params(mach)
     showall(stream, mach, dic=dict)
-    println(stream, "\n## Model detail:")
+    println(stream, "\n## Transformer detail:")
     showall(stream, mach.transformer)
     println(stream, "\n##Scheme detail:")
     showall(stream, mach.scheme)
