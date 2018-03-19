@@ -5,8 +5,8 @@ module Koala
 export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
-export SupervisedMachine, ConstantRegressor
-export TransformerMachine, IdentityTransformer, FeatureSelector
+export ConstantRegressor
+export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, @colon, @curve, @pcurve
@@ -321,7 +321,7 @@ function Base.showall(stream::IO, mach::TransformerMachine)
     showall(stream, mach.scheme)
 end
 
-function transform(mach::TransformerMachine, X; parallel=true, verbosity=1)
+function transform(mach::TransformerMachine, X)
     return transform(mach.transformer, mach.scheme, X)
 end
 
