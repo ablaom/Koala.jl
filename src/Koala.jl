@@ -10,6 +10,7 @@ export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, @colon, @curve, @pcurve
+export split_seen_unseen
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names
@@ -838,6 +839,67 @@ macro pcurve(var1, range, code)
     end
 end
 
-    
+""" 
+## `function split_seen_unseen`
 
+    split_seen_unseen(v::Vector, train_indices, test_indices)`
+
+Detects on which indices in `test_indices` the `AbstractVector`, `v`,
+takes on values not occuring in `train_indices`.  part of the
+vector. Returns a pair of integer vectors `(S, U)` where `S` are the
+unseen indices and `U` the unseen ones.
+
+    split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
+
+Detects the rows in `test_rows` for which some categorical feature of
+`df` takes on a value not observed in `train_rows`. Returns a pair of
+integer vectors `(S, U)` where `S` are the unseen rows and `U` the
+unseen ones.
+
+"""
+function split_seen_unseen(v::AbstractVector, train_rows, test_rows)
+    train_values = Set(v[train_rows])
+    test_values  = Set(v[test_rows])
+    unseen_values = setdiff(test_values, train_values)
+    seen_rows = Int[]
+    unseen_rows = Int[]
+    for i in test_rows
+        if v[i] in unseen_values
+            push!(unseen_rows, i)
+        else
+            push!(seen_rows, i)
+        end
+    end
+    return seen_rows, unseen_rows
+end
+    
+function split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
+
+    # collect all rows with unseen categorical values together:
+    unseen_rows = Int[]
+    for j in 1:size(df, 2)
+        if !(eltype(df[j]) <: Real)
+            seen, unseen = split_seen_unseen(df[j], train_rows, test_rows)
+            println(seen)
+            append!(unseen_rows, unseen)
+        end
+    end
+    unseen_rows = unique(unseen_rows)
+
+    ordered_unseen = Int[]
+    ordered_seen = Int[]
+
+    for i in test_rows
+        if i in unseen_rows
+            push!(ordered_unseen, i)
+        else
+            push!(ordered_seen, i)
+        end
+    end
+
+    return ordered_seen, ordered_unseen
+
+end
+    
+    
 end # module

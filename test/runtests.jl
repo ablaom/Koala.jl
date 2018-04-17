@@ -1,5 +1,6 @@
 using Koala
 using Base.Test
+using DataFrames
 
 # helpers:
 dict = Dict{String,Int}()
@@ -37,6 +38,14 @@ u,v = @curve r linspace(0,10,50) (r^2 + 1)
 u,v = @pcurve r linspace(0,10,50) (r^2 + 1)
 u,v,w =@curve r linspace(0,10,5) s linspace(0,5,4) r*s^2
 
+v = ['a', 'b', 'b', 'c',
+     'a', 'd', 'a', 'b', 'e']
+trainrows = 1:4
+testrows = 5:9
+@test split_seen_unseen(v, trainrows, testrows) == ([5, 7, 8], [6, 9])
+split_seen_unseen(v, trainrows, testrows)
 
-
-
+w = ["log", "house", "house", "house",
+     "brick", "house", "log", "log", "log"]
+df = DataFrame(v=v, w=w)
+@test split_seen_unseen(df, trainrows, testrows) == ([7, 8], [5, 6, 9])
