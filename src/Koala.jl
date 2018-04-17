@@ -845,7 +845,7 @@ end
     split_seen_unseen(v::Vector, train_indices, test_indices)`
 
 Detects on which indices in `test_indices` the `AbstractVector`, `v`,
-takes on values not occuring in `train_indices`.  part of the
+takes on values not occuring in the `train_indices` part of the
 vector. Returns a pair of integer vectors `(S, U)` where `S` are the
 unseen indices and `U` the unseen ones.
 
