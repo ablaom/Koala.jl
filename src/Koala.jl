@@ -880,7 +880,6 @@ function split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
     for j in 1:size(df, 2)
         if !(eltype(df[j]) <: Real)
             seen, unseen = split_seen_unseen(df[j], train_rows, test_rows)
-            println(seen)
             append!(unseen_rows, unseen)
         end
     end
