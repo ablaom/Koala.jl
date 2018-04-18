@@ -2,7 +2,7 @@
 module Koala
 
 # new: 
-export @more, keys_ordered_by_values, bootstrap_resample_of_mean, params
+export @more, @dbg, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
 export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
 export ConstantRegressor
@@ -39,6 +39,28 @@ function default_transformer_y end
 macro more()
     esc(quote
         showall(Main.ans)
+    end)
+end
+
+"""convenience macro for printing variable values (eg for degugging)"""
+macro dbg(v)
+    esc(quote
+        print((@colon $v), "=", $v, " ")
+    end)
+end
+
+macro dbg(v1, v2)
+    esc(quote
+        print((@colon $v1), "=", $v1, " ")
+        println((@colon $v2), "=", $v2, " ")
+    end)
+end
+
+macro dbg(v1, v2, v3)
+    esc(quote
+        print((@colon $v1), "=", $v1, " ")
+        print((@colon $v2), "=", $v2, " ")
+        println((@colon $v3), "=", $v3, " ")
     end)
 end
 
