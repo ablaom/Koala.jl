@@ -389,8 +389,27 @@ fit(transformer::IdentityTransformer, y, parallel, verbosity) = nothing
 transform(transformer::IdentityTransformer, scheme, y) = y
 inverse_transform(transformer::IdentityTransformer, scheme, y) = y
 
-# a special transformer mapping `Abstract{Int}`s to `Abstract{Int}`s,
-# to deal with dropping rows from a input `DataFrame`
+"""
+## `struct RowsTransformer <: Transformer`
+
+A special transformer mapping `Abstract{Int}`s to `Abstract{Int}`s, to
+deal with dropping rows from a input `DataFrame`.
+
+Suppose `df` is a `DataFrame` and `bad` is a vector of indices for
+rows that have been dropped from `df` to form `df_safe`. Given a
+vector of indices `rows`, I want `df[good_rows,:]` where `good_rows`
+is `rows` with any elements of `bad` removed. However, I only have
+access to `df_safe` (although I know `size(df, 1)`).  An appropriate
+transformation of `rows` gives a vector of indices to use on
+`df_safe`:
+
+    mach = Machine(RowTransformer(size(df,1)), bad)
+    df[good_rows,:] == df_safe[transform(mach, rows),:] # true
+
+Analogous statements hold for array-like collection apart from
+`DataFrames`.
+
+"""
 struct RowsTransformer <: Transformer
     original_num_rows::Int
 end
