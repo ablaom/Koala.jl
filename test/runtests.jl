@@ -31,7 +31,7 @@ fit!(mach) # fit again without recomputing cache
     predict(mach.model, mach.predictor, mach.Xt[test,:], false, false)
 
 learning_curve(mach, train, test, [2, 4, 8, 1000], raw=false)
-learning_curve(mach, train, test, [2000, 3000], raw=false, restart=false)
+learning_curve(mach, train, test, [2000, 3000], restart=false)
 cv(mach, vcat(test, train))
 
 u,v = @curve r linspace(0,10,50) (r^2 + 1)
@@ -49,3 +49,18 @@ w = ["log", "house", "house", "house",
      "brick", "house", "log", "log", "log"]
 df = DataFrame(v=v, w=w)
 @test split_seen_unseen(df, trainrows, testrows) == ([7, 8], [5, 6, 9])
+
+# test drop_unseen capability
+X[4] = map(Char, X[4])
+X[9] = map(Char, X[9])
+X[10] = map(Char, X[10])
+train = 1:length(y) - 10
+test = length(y) - 9 : length(y)
+model = ConstantRegressor()
+mach = Machine(model, X, y, train, drop_unseen=true)
+fit!(mach, train)
+err(mach, test)
+learning_curve(mach, train, test, [2, 4, 8, 1000])
+learning_curve(mach, train, test, [2000, 3000], restart=false)
+
+

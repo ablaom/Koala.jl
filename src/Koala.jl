@@ -391,6 +391,23 @@ inverse_transform(transformer::IdentityTransformer, scheme, y) = y
 
 ## Machines for supervised learning
 
+""" 
+## `mutable struct SupervisedMachine`
+
+### Keyword options
+
+    drop_unseen=false
+
+All calls to `err` method on the machine will ignore rows with
+categorical features taking on values not seen in training.
+
+    features = Symbol[]
+
+Only specified features are used. Empty means *all* features are
+used. The features used can also be controlled by `transformer_X`.
+
+"""
+
 mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
 
     model::M
@@ -398,6 +415,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
     transformer_y::Transformer
     scheme_X
     scheme_y
+    rows_with_unseen::AbstractVector{Int}
     n_iter::Int
     Xt
     yt
@@ -410,9 +428,10 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         X::AbstractDataFrame,
         y::AbstractVector,
         train_rows::AbstractVector{Int}; # for defining data transformations
-        features = Symbol[],
+        features=Symbol[],
         transformer_X=EmptyTransformer(),
         transformer_y=EmptyTransformer(),
+        drop_unseen::Bool=false, 
         verbosity::Int=1) where {P, M <: SupervisedModel{P}}
 
         # check dimension match:
@@ -425,6 +444,10 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         allunique(features) || error("Duplicate features.")
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
 
+        # report size of data used for transformations
+        percent_train = round(Int, 1000*length(train_rows)/length(y))/10
+        verbosity < 1 || info("$percent_train% of data used to compute transformations.")
+
         # assign transformers if not provided:
         if isempty(transformer_X)
             transformer_X = default_transformer_X(model)
@@ -433,13 +456,53 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
             transformer_y = default_transformer_y(model)
         end            
 
+        # if necessary, determine rows with categorical levels not
+        # seen in X[train_rows, :]:
+        if drop_unseen
+
+            # get test_rows:
+            test_rows = Int[]
+            for i in eachindex(y)
+                if !(i in train_rows)
+                    push!(test_rows, i)
+                end
+            end
+
+            seen, unseen = split_seen_unseen(X, train_rows, test_rows)
+            bad_percentage = round(Int, 1000*length(unseen)/length(test_rows))/10
+
+            verbosity < 0 || warn("$bad_percentage% of the remaining rows of input data"*
+                                  "(recorded in the `rows_with_unseen` attribute) contain "*
+                                  "patterns for which some categorical feature "*
+                                  "takes on values not seen during data "*
+                                  "transformation. These will be ignored in "*
+                                  "calls to err() and  learning_curve() on your machine. "*
+                                  "However, you will be unable to safely "*
+                                  "call predict() or cv() on such rows.")
+            
+        else
+            unseen = Int[]
+        end
+            
         mach = new{P, M}(model::M)
         mach.transformer_X = transformer_X
         mach.transformer_y = transformer_y
         mach.scheme_X = fit(mach.transformer_X, X[train_rows, features],
                             true, verbosity - 1)
         mach.scheme_y = fit(mach.transformer_y, y[train_rows], verbosity - 1, 1)
-        mach.Xt = transform(mach.transformer_X, mach.scheme_X, X)
+        mach.rows_with_unseen = unseen
+        try
+            mach.Xt = transform(mach.transformer_X, mach.scheme_X, X)
+        catch exception
+            if isa(exception, KeyError)
+                println("The following error may be due to "*
+                        "categorical features taking on values "*
+                        "not encountered in the rows provided for "*
+                        "computing data transformations. Try calling "*
+                        "`Machine` with `drop_unseen=true`.")
+                throw(exception)
+            end
+        end
         mach.yt = transform(mach.transformer_y, mach.scheme_y, y)
         mach.n_iter = 0
         mach.report = Dict{Symbol,Any}()
@@ -534,12 +597,25 @@ function predict(mach::SupervisedMachine, X; parallel=true, verbosity=1)
 end
 
 function err(mach::SupervisedMachine, test_rows;
-             loss=rms, parallel=false, verbosity=0, raw=false)
+             loss=rms, parallel=false, verbosity=1, raw=false)
 
     mach.n_iter > 0 || error("Attempting to predict using untrained machine.")
 
     !raw || verbosity < 0 || warn("Reporting errors for *transformed* target. "*
-                                    "Use `raw=false` to report true errors.")
+                                  "Use `raw=false` to report true errors.")
+
+    if !isempty(mach.rows_with_unseen)
+        verbosity < 1 ||
+            info("Ignoring rows with categorical data values "*
+                 "not seen in transformation.")
+        new_test_rows = Int[]
+        for i in test_rows
+            if !(i in mach.rows_with_unseen)
+                push!(new_test_rows, i)
+            end
+        end
+        test_rows = new_test_rows
+    end
 
     # transformed version of target predictions:
     raw_predictions = predict(mach.model, mach.predictor, mach.Xt, test_rows,
@@ -664,6 +740,12 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
     !raw || verbosity < 0 ||
         warn("Reporting errors for *transformed* target. Use `raw=false` "*
              " to report true errors.")
+
+    if !isempty(mach.rows_with_unseen)
+        verbosity < 1 ||
+            info("Ignoring test rows with categorical data values "*
+                 "not seen in transformation.")
+    end
     
     range = collect(range)
     sort!(range)
@@ -694,7 +776,7 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
         end
         mach.n_iter += mach.model.n
         push!(n_iter_list, mach.n_iter)
-        push!(errors, err(mach, test_rows, raw=raw, loss=loss))
+        push!(errors, err(mach, test_rows, raw=raw, loss=loss, verbosity=verbosity - 1))
         filter!(range) do x
             x > mach.n_iter
         end
