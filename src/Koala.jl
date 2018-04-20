@@ -545,7 +545,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
                 mach.yt = transform(mach.transformer_y, mach.scheme_y, y)
             catch exception
                 if isa(exception, KeyError)
-                    error("KeyError: key $exception.key not found. Problably "*
+                    error("KeyError: key $(exception.key) not found. Problably "*
                         "a categorical feature takes on values "*
                         "not encountered in the rows provided for "*
                         "computing data transformations. Try calling "*
