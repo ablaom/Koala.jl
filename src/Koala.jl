@@ -1040,17 +1040,14 @@ function split_seen_unseen(v::AbstractVector, train_rows, test_rows)
     train_values = Set(v[train_rows])
     test_values  = Set(v[test_rows])
     unseen_values = setdiff(test_values, train_values)
-    seen_rows = Int[]
-    unseen_rows = Int[]
-    for i in test_rows
-        if v[i] in unseen_values
-            push!(unseen_rows, i)
-        else
-            push!(seen_rows, i)
-        end
+
+    is_unseen = map(test_rows) do i
+        v[i] in unseen_values
     end
-    return seen_rows, unseen_rows
-end
+
+    return test_rows[.!is_unseen], test_rows[is_unseen]
+
+end 
     
 function split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
 

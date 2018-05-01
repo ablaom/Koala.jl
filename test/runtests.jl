@@ -38,17 +38,23 @@ u,v = @curve r linspace(0,10,50) (r^2 + 1)
 u,v = @pcurve r linspace(0,10,50) (r^2 + 1)
 u,v,w =@curve r linspace(0,10,5) s linspace(0,5,4) r*s^2
 
+
+# test split_seen_unseen
 v = ['a', 'b', 'b', 'c',
      'a', 'd', 'a', 'b', 'e']
 trainrows = 1:4
 testrows = 5:9
 @test split_seen_unseen(v, trainrows, testrows) == ([5, 7, 8], [6, 9])
-split_seen_unseen(v, trainrows, testrows)
 
 w = ["log", "house", "house", "house",
      "brick", "house", "log", "log", "log"]
 df = DataFrame(v=v, w=w)
 @test split_seen_unseen(df, trainrows, testrows) == ([7, 8], [5, 6, 9])
+
+# time tests:
+v=rand(UInt32, 10^7)
+trainrows, testrows = split(eachindex(v), 0.9)
+@time map(length, split_seen_unseen(v, trainrows, testrows))
 
 # test drop_unseen capability
 X[4] = map(Char, X[4])
@@ -62,6 +68,8 @@ fit!(mach, train)
 err(mach, test)
 learning_curve(mach, train, test, [2, 4, 8, 1000])
 learning_curve(mach, train, test, [2000, 3000], restart=false)
+
+
 
 t = Koala.RowsTransformer(10)
 tM  = Machine(t, [2, 4, 5, 9])
