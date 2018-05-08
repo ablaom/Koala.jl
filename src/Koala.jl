@@ -156,37 +156,32 @@ function params(object::BaseType)
     return value_given_parameter
 end
 
-""" Extract type parameters of the type of an object."""
-function type_parameters(object)
-    params = typeof(object).parameters
-    ret =[]
-    for p in params
-        if isa(p, Type)
-            push!(ret, p.name.name)
+function name(T::Type)
+    if isa(T, Union)
+        types = [getfield(T, f) for f in fieldnames(T)]
+        if isempty(types)
+            return ""
         else
-            push!(ret, p)
+            return string("Union{", types[1], types[2:end]..., "}")
         end
+    else
+        return T.name.name
     end
-    return ret
 end
+            
+""" Extract type parameters of the type of an object."""
+type_parameters(object) = typeof(object).parameters
 
 """ Output plain/text representation to specified stream. """
 function Base.show(stream::IO, object::BaseType)
     abbreviated(n) = "…"*string(n)[end-2:end]
-    type_params = type_parameters(object)
-    if isempty(type_params)
-        type_string = ""
-    else
-        type_string = string("{", ["$T," for T in type_params]..., "}")
-    end
     print(stream, string(typeof(object).name.name,
-                         type_string,
                          "@", abbreviated(hash(object))))
 end
 
 """ 
 Output detailed plain/text representation to specified stream. If
-`dic` is unspecified then the parameter dictionary (ie dictionary
+`dict` is unspecified then the parameter dictionary (ie dictionary
 keyed on `object`'s fields) is displayed .To display an altered
 dictionary for some subtype of `BaseType` overload the two-argument
 version of this method and call *this* method with the altered
@@ -194,13 +189,17 @@ dictionary.
 
 """
 function Base.showall(stream::IO, object::BaseType;
-                      dic::Dict{Symbol,Any}=Dict{Symbol,Any}())
-    if isempty(dic)
-        dic = params(object)
+                      dict::Dict{Symbol,Any}=Dict{Symbol,Any}())
+    if isempty(dict)
+        dict = params(object)
     end
+    # type_parameters = collect(typeof(object).parameters)
+    # if !isempty(type_parameters)
+    #     dict[Symbol(" _type parameters_ ")] = type_parameters
+    # end
     show(stream, object)
     println(stream)
-    showall(stream, dic)
+    showall(stream, dict)
 end
 
 
@@ -336,9 +335,15 @@ TransformerMachine(transformer::T, X; args...) where T <: Transformer =
 Machine(transformer::Transformer, X; args...) =
     TransformerMachine(transformer, X; args...)
 
+function Base.show(stream::IO, mach::TransformerMachine)
+    abbreviated(n) = "..."*string(n)[end-2:end]
+    type_string = string("TransformerMachine{", typeof(mach.transformer).name.name, "}")
+    print(stream, type_string, "@", abbreviated(hash(mach)))
+end
+
 function Base.showall(stream::IO, mach::TransformerMachine)
     dict = params(mach)
-    showall(stream, mach, dic=dict)
+    showall(stream, mach, dict=dict)
     println(stream, "\n## Transformer detail:")
     showall(stream, mach.transformer)
     println(stream, "\n##Scheme detail:")
@@ -585,13 +590,13 @@ function Base.show(stream::IO, mach::SupervisedMachine)
 end
 
 function Base.showall(stream::IO, mach::SupervisedMachine)
-    dic = params(mach)
-    report_items = sort(collect(keys(dic[:report])))
-    dic[:report] = "Dic with keys: $report_items"
-    dic[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
-    dic[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
-    delete!(dic, :cache)
-    showall(stream, mach, dic=dic)
+    dict = params(mach)
+    report_items = sort(collect(keys(dict[:report])))
+    dict[:report] = "Dict with keys: $report_items"
+    dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
+    dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
+    delete!(dict, :cache)
+    showall(stream, mach, dict=dict)
     println(stream, "\n## Model detail:")
     showall(stream, mach.model)
 end
