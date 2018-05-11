@@ -17,6 +17,7 @@ import DataFrames: DataFrame, AbstractDataFrame, names
 import CSV
 import StatsBase: sample
 import Missings: Missing, missing, skipmissing
+using  RecipesBase, StatPlots # for plotting recipes
 
 # extended in this module:
 import Base: show, showall, isempty, split
@@ -1080,6 +1081,32 @@ function split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
     return ordered_seen, ordered_unseen
 
 end
-    
-    
+
+
+## RECIPES FOR USE WITH Plots.jl
+
+# plot recipe
+
+@userplot BootstrapHistogram
+
+@recipe function dummy(h::BootstrapHistogram)
+    v = h.args[1]
+    bootstrap = bootstrap_resample_of_mean(v)
+    @series begin
+        seriestype := :histogram
+        alpha --> 0.5
+        normalized := true
+        label --> now().instant.periods.value
+        bins --> 50
+        bootstrap
+    end
+    @series begin
+        seriestype := :density
+        label := ""
+        linewidth --> 2
+        color --> :black
+        bootstrap
+    end
+end
+
 end # module
