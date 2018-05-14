@@ -11,13 +11,14 @@ export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, @colon, @curve, @pcurve
 export split_seen_unseen
+export bootstrap_histogram, bootstrap_histogram!, recordfig, PlotableDict
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names
 import CSV
 import StatsBase: sample
 import Missings: Missing, missing, skipmissing
-using  RecipesBase, StatPlots # for plotting recipes
+using  RecipesBase # for plotting recipes
 
 # extended in this module:
 import Base: show, showall, isempty, split
@@ -119,7 +120,9 @@ function keys_ordered_by_values(d::Dict{T,S}) where {T, S<:Real}
 end
 
 """
-## `bootstrap_resample_of_mean(v; n=10^6)`
+````
+bootstrap_resample_of_mean(v; n=10^6)
+````
 
 Returns a vector of `n` estimates of the mean of the distribution
 generating the samples in `v` from `n` bootstrap resamples of `v`.
@@ -1085,30 +1088,110 @@ end
 
 ## RECIPES FOR USE WITH Plots.jl
 
-# plot recipe
+# plain wrapper for real-valued dictionary so it can be plotted:
+struct PlotableDict{KeyType,ValueType<:Real}
+    dict::Dict{KeyType,ValueType}
+end
 
-@userplot BootstrapHistogram
+@recipe function dummy(::Type{PlotableDict{KeyType,ValueType}},
+                       pd::PlotableDict{KeyType,ValueType};
+                       ordered_by_keys=false) where {KeyType,ValueType<:Real}
 
-@recipe function dummy(h::BootstrapHistogram)
+    seriestype := :bar
+
+    dict_to_be_plotted = pd.dict
+    x = String[]
+    y = ValueType[]
+    
+    if ordered_by_keys
+        kys = sort(collect(keys(dict_to_be_plotted)))
+    else
+        kys = keys_ordered_by_values(dict_to_be_plotted)
+    end
+    
+    for k in kys
+        push!(x, string(k))
+        push!(y, dict_to_be_plotted[k])
+    end
+    offset = 0.05*maximum(abs.(y))
+    xticks := Float64[]
+    annotations := [(Float64(i), offset, x[i]) for i in eachindex(x)]
+    y
+
+end
+            
+mutable struct BootstrapHistogram 
+        args
+end 
+
+"""
+    bootstrap_histogram(v; n=1e6, plotting_kws...)
+
+Create a bootstrap sample of size `n` from `v` and plot the
+corresponding histogram.
+
+"""
+bootstrap_histogram(args...; kw...) = begin  
+            RecipesBase.plot(BootstrapHistogram(args); kw...)
+end
+
+bootstrap_histogram!(args...; kw...) = begin  
+    RecipesBase.plot!(BootstrapHistogram(args); kw...)
+end
+
+@recipe function dummy(h::BootstrapHistogram; n=10^6)
     length(h.args) == 1 || typeof(h.args) <: AbstractVector ||
         error("A BootstrapHistogram should be given one vector. Got: $(typeof(h.args))")
     v = h.args[1]
-    bootstrap = bootstrap_resample_of_mean(v)
+    bootstrap = bootstrap_resample_of_mean(v; n=n)
     @series begin
         seriestype := :histogram
         alpha --> 0.5
         normalized := true
-        label --> now().instant.periods.value
         bins --> 50
         bootstrap
     end
-    @series begin
-        seriestype := :density
-        label := ""
-        linewidth --> 2
-        color --> :black
-        bootstrap
+    if isdefined(:StatPlots) 
+        @series begin
+            seriestype := :density
+            label := ""
+            linewidth --> 2
+            color --> :black
+            bootstrap
+        end
+    else
+        info("For denisty approximation in a bootstrap_histogram, import StatsPlots.")
     end
+end
+
+"""
+    recordfig(filename, models...)
+
+Save the current `Plots` figure as a PNG file called `filename` (which
+must include ".png" extension) and generate a markdown report
+containing an embedded version of the figure and the output of
+`showall(model)` for each `model` in `models` (ususually metadata
+associated with the plot).
+
+For example, if the filename is "assets/myplot.png" then two files
+"assets/myplot.png" and "assets/myplot.md" are created.
+
+"""
+function recordfig(figure_filename::String, models...)
+    isdefined(Plots, :savefig) || error("Cannot record figures without Plots imported.")
+    local_figure_filename = match(r"([^\/]*)$", figure_filename)[1]
+    title = match(r"(.*)\..*$", local_figure_filename)[1]
+    md_filename = match(r"(.*)\..*$", figure_filename)[1] * ".md"
+    savefig(figure_filename)
+    open(md_filename,"w") do md_file
+        write(md_file, "# $title\n\n")
+        write(md_file, "![$local_figure_filename]($local_figure_filename)\n\n")
+        for model in models
+            showall(md_file, model)
+            println(md_file, "\n\n")
+        end
+    end
+    info("Recorded figure and metadata at $md_filename.")
 end
 
 end # module
