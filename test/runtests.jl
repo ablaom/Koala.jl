@@ -9,6 +9,13 @@ dict["b"] = 2
 dict["a"] = 1
 @test keys_ordered_by_values(dict) == ["a", "b", "c"]
 bootstrap_resample_of_mean(randn(100))
+v = [1,2,missing]
+@test hasmissing(v) 
+@test Koala.ismissingtype(eltype(v))
+@test Koala.leadingtype(eltype(v)) == Int
+v[3] = 3
+@test eltype(purify(v)) == Int
+
 
 X, y = load_boston();
 train, test = split(eachindex(y), 0.8); # 80:20 split
@@ -60,15 +67,14 @@ trainrows, testrows = split(eachindex(v), 0.9)
 X[4] = map(Char, X[4])
 X[9] = map(Char, X[9])
 X[10] = map(Char, X[10])
-train = 1:length(y) - 10
-test = length(y) - 9 : length(y)
+train = 1:length(y) - 6
+test = length(y) - 5 : length(y)
 model = ConstantRegressor()
 mach = Machine(model, X, y, train, drop_unseen=true)
 fit!(mach, train)
 err(mach, test)
 learning_curve(mach, train, test, [2, 4, 8, 1000])
 learning_curve(mach, train, test, [2000, 3000], restart=false)
-
 
 
 t = Koala.RowsTransformer(10)

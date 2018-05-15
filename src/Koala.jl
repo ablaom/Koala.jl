@@ -4,6 +4,7 @@ module Koala
 # new: 
 export @more, @dbg, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
+export hasmissing, ismissingtype, purify
 export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
 export ConstantRegressor
 export IdentityTransformer, FeatureSelector
@@ -17,7 +18,7 @@ export bootstrap_histogram, bootstrap_histogram!, recordfig, PlotableDict
 import DataFrames: DataFrame, AbstractDataFrame, names
 import CSV
 import StatsBase: sample
-import Missings: Missing, missing, skipmissing
+import Missings: Missing, missing, skipmissing, ismissing
 using  RecipesBase # for plotting recipes
 
 # extended in this module:
@@ -36,8 +37,35 @@ function inverse_transform end
 function default_transformer_X end
 function default_transformer_y end
 
-## Some general assorted helpers:
+## HELPERS
 
+function ismissingtype(T::Type)
+    if isa(T, Union)
+        fields = fieldnames(T)
+        if length(fields) == 2
+            if Missing in [getfield(T, f) for f in fields]
+                return true
+            end
+        end
+    end
+    return false
+end
+
+leadingtype(T::Union) = T.a::Type # for extacting pure type from missing type
+
+hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != 0
+
+""" convert a vector of eltype `Union{T, Missings.Missing}` to one of eltype `T`"""
+function purify(v::AbstractVector)
+    T = eltype(v)
+    if ismissingtype(T) 
+        !hasmissing(v) || error("Can't purify a vector with missing values.")
+        return convert(Array{leadingtype(T)}, v)
+    else
+        return v
+    end
+end
+    
 """ macro shortcut for showing all of last REPL expression"""
 macro more()
     esc(quote
@@ -80,8 +108,11 @@ function load_boston()
     features = filter(names(df)) do f
         f != :MedV
     end
-    X = df[features] 
-    y = df[:MedV]
+    X = df[features]
+    for j in 1:size(X, 2)
+        X[j] = purify(X[j])
+    end
+    y = purify(df[:MedV])
     return X, y 
 end
 
@@ -92,8 +123,11 @@ function load_ames()
     features = filter(names(df)) do f
         f != :target
     end
-    X = df[features] 
-    y = exp.(df[:target])
+    X = df[features]
+    for j in 1:size(X,2)
+        X[j] = purify(X[j])
+    end
+    y = purify(exp.(df[:target]))
     return X, y 
 end
 datanow=load_ames
@@ -118,6 +152,7 @@ function keys_ordered_by_values(d::Dict{T,S}) where {T, S<:Real}
     return T[pair[1] for pair in items]
 
 end
+
 
 """
 ````
@@ -399,9 +434,9 @@ transform(transformer::IdentityTransformer, scheme, y) = y
 inverse_transform(transformer::IdentityTransformer, scheme, y) = y
 
 """
-## `struct RowsTransformer <: Transformer`
+    struct RowsTransformer <: Transformer
 
-A special transformer mapping `Abstract{Int}`s to `Abstract{Int}`s, to
+A special transformer mapping `AbstractVector{Int}`s to `AbstractVector{Int}`s, to
 deal with dropping rows from a input `DataFrame`.
 
 Suppose `df` is a `DataFrame` and `bad` is a vector of indices for
@@ -415,7 +450,7 @@ transformation of `rows` gives a vector of indices to use on
     mach = Machine(RowTransformer(size(df,1)), bad)
     df[good_rows,:] == df_safe[transform(mach, rows),:] # true
 
-Analogous statements hold for array-like collection apart from
+Analogous statements hold for array-like collections apart from
 `DataFrames`.
 
 """
@@ -489,6 +524,16 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         # check dimension match:
         size(X,1) == length(y) || throw(DimensionMismatch())
 
+        # check for missing data and report eltypes
+        verbosity < 1 || info("Input field element types:")
+        for field in names(X)
+            T = eltype(X[field])
+            verbosity < 1 || info("  :$field \t=> $T")
+            if ismissingtype(T)
+                verbosity < 0 || warn(":$field has a missing-element type. ")
+            end
+        end
+
         # check valid `features`; if none provided, take to be all
         if isempty(features)
             features = names(X)
@@ -498,7 +543,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
 
         # report size of data used for transformations
         percent_train = round(Int, 1000*length(train_rows)/length(y))/10
-        verbosity < 1 || info("$percent_train% of data used to compute "*
+        verbosity < 0 || info("$percent_train% of data used to compute "*
                               " transformation parameters.")
 
         # assign transformers if not provided:
@@ -520,21 +565,27 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
             end
 
             seen, unseen = split_seen_unseen(X, train_rows, test_rows)
-            bad_percentage = round(Int, 1000*length(unseen)/length(test_rows))/10
-
-            verbosity < 0 || warn("$bad_percentage% of the remaining rows of input data"*
-                                  "(recorded in the attribute `rows_with_unseen`) "*
-                                  "contain "*
-                                  "patterns for which some categorical feature "*
-                                  "takes on values not seen during data "*
-                                  "transformation. These will be ignored in "*
-                                  "calls to err(), cv() and  learning_curve(). "*
-                                  "However, you will be unable to safely "*
-                                  "call predict() on such data.")
-            
+            if verbosity > -1
+                if length(unseen) == 0 
+                    warn("All remaining rows of the inputs data have categorical "*
+                         "features taking values not seen during data transformation.")
+                else
+                    bad_percentage = round(Int, 1000*length(unseen)/length(test_rows))/10
+                    warn("$bad_percentage% of the remaining rows of input data"*
+                         "(recorded in the attribute `rows_with_unseen`) "*
+                         "contain "*
+                         "patterns for which some categorical feature "*
+                         "takes on values not seen during data "*
+                         "transformation. These will be ignored in "*
+                         "calls to err(), cv() and  learning_curve(). "*
+                         "However, you will be unable to safely "*
+                         "call predict() on such data.")
+                end
+            end
         else
             unseen = Int[]
         end
+
         rows_transformer_machine = Machine(RowsTransformer(length(y)), unseen)
         
         mach = new{P, M}(model::M)

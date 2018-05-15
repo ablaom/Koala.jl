@@ -5,8 +5,8 @@ through a combination of high and low-level interfaces.
 
 Currently in development and experimental.
 
-For an introductory tour, clone the repositories into directories your
-julia installation can find and run [this code](docs/tour.jl) in your
+For an introductory tour, clone the repositories into directories that your
+julia installation can find and run [docs/tour.jl](docs/tour.jl) in your
 Julia REPL.
 
 ### Current Koala machine learning library

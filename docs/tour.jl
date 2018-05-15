@@ -8,8 +8,16 @@ X, y = load_ames();
 
 # Note that `X`, which stores the input patterns, is a `DataFrame`
 # object; the high-level Koala interface expects all inputs to be
-# `DataFrame` objects. Columns of type `T <: Real` are treated as
-# numerical features; all others are treated as categorical.
+# `DataFrame` objects. Columns of element type `T <: Real` are treated
+# as numerical features; all others are treated as
+# categorical.
+
+# Not in particular that a missing-type column - i.e., a column `col`
+# of element type `Union{T, Missings.Missing}` - will be treated as
+# categorical. In that case replace any missing values in `col` and
+# substitue `purify(col)` for `col` to get the type you probably
+# wanted. We can check for missing-type columns as follows:
+[ismissingtype(eltype(X[j])) for j in 1:size(X, 2)]
 
 # In Koala, normal practice is to store training and test data in a
 # single `DataFrame`, `X`, padding unknown instances of the target
@@ -30,10 +38,6 @@ showall(tree)
 treeM = Machine(tree, X, y, train)
 treeM.Xt[1:6,:]
 treeM.yt[1:6]
-
-# In this case the categorical features have been one-hot encoded; the
-# target eltype has been converted to `Float64` but is otherwise
-# untouched.
 
 # Note that `Xt` and `yt represents *all* the transformed data. The
 # `train` argument of `Machine` merely specifies which part of the
