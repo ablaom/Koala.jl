@@ -1234,7 +1234,7 @@ function recordfig(figure_filename::String, models...)
     local_figure_filename = match(r"([^\/]*)$", figure_filename)[1]
     title = match(r"(.*)\..*$", local_figure_filename)[1]
     md_filename = match(r"(.*)\..*$", figure_filename)[1] * ".md"
-    savefig(figure_filename)
+    Plots.savefig(figure_filename)
     open(md_filename,"w") do md_file
         write(md_file, "# $title\n\n")
         write(md_file, "![$local_figure_filename]($local_figure_filename)\n\n")
