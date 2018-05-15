@@ -1229,7 +1229,8 @@ For example, if the filename is "assets/myplot.png" then two files
 
 """
 function recordfig(figure_filename::String, models...)
-    isdefined(Plots, :savefig) || error("Cannot record figures without Plots imported.")
+    isdefined(:Plots) ||
+        error("Cannot record figures without Plots imported.")
     local_figure_filename = match(r"([^\/]*)$", figure_filename)[1]
     title = match(r"(.*)\..*$", local_figure_filename)[1]
     md_filename = match(r"(.*)\..*$", figure_filename)[1] * ".md"
