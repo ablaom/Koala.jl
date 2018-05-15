@@ -12,7 +12,7 @@ export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, @colon, @curve, @pcurve
 export split_seen_unseen
-export bootstrap_histogram, bootstrap_histogram!, recordfig, PlotableDict
+export bootstrap_histogram, bootstrap_histogram!, PlotableDict
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names
@@ -1139,7 +1139,17 @@ end
 
 ## RECIPES FOR USE WITH Plots.jl
 
-# plain wrapper for real-valued dictionary so it can be plotted:
+"""
+    PlotableDict(d)
+
+Returns a wrapped version of the dictionary `d` (assumed to have `Real` values) to enable plotting with calls to `Plot.plot`, etc (provided by a `Plots` recipe). In particular, 
+
+    plot(PlotableDict(d), ordered_by_keys=true)
+
+plots the bars in the lexographic order of the keys. Otherwise, the
+bars are ordered by the values corresponding to to each key.
+
+"""
 struct PlotableDict{KeyType,ValueType<:Real}
     dict::Dict{KeyType,ValueType}
 end
@@ -1215,35 +1225,5 @@ end
     end
 end
 
-"""
-    recordfig(filename, models...)
-
-Save the current `Plots` figure as a PNG file called `filename` (which
-must include ".png" extension) and generate a markdown report
-containing an embedded version of the figure and the output of
-`showall(model)` for each `model` in `models` (ususually metadata
-associated with the plot).
-
-For example, if the filename is "assets/myplot.png" then two files
-"assets/myplot.png" and "assets/myplot.md" are created.
-
-"""
-function recordfig(figure_filename::String, models...)
-    isdefined(:Plots) ||
-        error("Cannot record figures without Plots imported.")
-    local_figure_filename = match(r"([^\/]*)$", figure_filename)[1]
-    title = match(r"(.*)\..*$", local_figure_filename)[1]
-    md_filename = match(r"(.*)\..*$", figure_filename)[1] * ".md"
-    Plots.savefig(figure_filename)
-    open(md_filename,"w") do md_file
-        write(md_file, "# $title\n\n")
-        write(md_file, "![$local_figure_filename]($local_figure_filename)\n\n")
-        for model in models
-            showall(md_file, model)
-            println(md_file, "\n\n")
-        end
-    end
-    info("Recorded figure and metadata at $md_filename.")
-end
 
 end # module
