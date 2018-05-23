@@ -213,7 +213,7 @@ type_parameters(object) = typeof(object).parameters
 
 """ Output plain/text representation to specified stream. """
 function Base.show(stream::IO, object::BaseType)
-    abbreviated(n) = "…"*string(n)[end-2:end]
+    abbreviated(n) = "..."*string(n)[end-2:end]
     print(stream, string(typeof(object).name.name,
                          "@", abbreviated(hash(object))))
 end
@@ -544,7 +544,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         # report size of data used for transformations
         percent_train = round(Int, 1000*length(train_rows)/length(y))/10
         verbosity < 0 || info("$percent_train% of data used to compute "*
-                              " transformation parameters.")
+                              "transformation parameters.")
 
         # assign transformers if not provided:
         if isempty(transformer_X)
