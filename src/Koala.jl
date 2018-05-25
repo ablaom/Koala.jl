@@ -408,9 +408,10 @@ struct EmptyTransformer <: Transformer end
 Base.isempty(transformer::Transformer) = false
 Base.isempty(transformer::EmptyTransformer) = true
 
-# for (a) remembering the features used in `fit` (calibration) and
-# selecting only those on tranforming new data frames; or (b) select only
-# feature labels specified in the tranformer:
+# for (a) remembering the features used in `fit` (calibration), in
+# order presented, and selecting only those on tranforming new data
+# frames; or (b) selecting only feature labels specified in the
+# tranformer:
 mutable struct FeatureSelector <: Transformer
     features::Vector{Symbol} # empty means do (a) above
 end
@@ -422,9 +423,9 @@ function fit(transformer::FeatureSelector, X, parallel, verbosity)
         return transformer.features
     end
 end
-function transform(transformer::FeatureSelector, scheme, X)
-    issubset(Set(scheme), Set(names(X))) || throw(DomainError)
-    return X[scheme]
+function transform(transformer::FeatureSelector, features, X)
+    issubset(Set(features), Set(names(X))) || throw(DomainError)
+    return X[features]
 end 
 
 # identity transformations:
@@ -524,22 +525,31 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         # check dimension match:
         size(X,1) == length(y) || throw(DimensionMismatch())
 
-        # check for missing data and report eltypes
-        verbosity < 1 || info("Input field element types:")
-        for field in names(X)
-            T = eltype(X[field])
-            verbosity < 1 || info("  :$field \t=> $T")
-            if ismissingtype(T)
-                verbosity < 0 || warn(":$field has a missing-element type. ")
-            end
-        end
-
         # check valid `features`; if none provided, take to be all
         if isempty(features)
             features = names(X)
         end
         allunique(features) || error("Duplicate features.")
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
+
+        # bind `X` to view of `X` containing only the features
+        # specified, in the order specified:
+        X = X[:, features]
+
+        # check for missing data and report eltypes:
+        verbosity < 1 || info("Element types of input features before transformation:")
+        for field in names(X)
+            T = eltype(X[field])
+            if ismissingtype(T)
+                if verbosity > -1
+                    warn(":$field has a missing-element type. ")
+                else 
+                    verbosity > 0 ? info("  :$field \t=> $T") : nothing
+                end
+            else
+                verbosity > 0 ? info("  :$field \t=> $T") : nothing
+            end
+        end
 
         # report size of data used for transformations
         percent_train = round(Int, 1000*length(train_rows)/length(y))/10
@@ -591,7 +601,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         mach = new{P, M}(model::M)
         mach.transformer_X = transformer_X
         mach.transformer_y = transformer_y
-        mach.scheme_X = fit(mach.transformer_X, X[train_rows, features],
+        mach.scheme_X = fit(mach.transformer_X, X[train_rows, :],
                             true, verbosity - 1)
         mach.scheme_y = fit(mach.transformer_y, y[train_rows], verbosity - 1, 1)
         mach.rows_with_unseen = unseen
