@@ -4,7 +4,8 @@ module Koala
 # new: 
 export @more, @dbg, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
-export hasmissing, ismissingtype, purify
+export hasmissing, countmissing, ismissingtype, purify
+export get_meta
 export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
 export ConstantRegressor
 export IdentityTransformer, FeatureSelector
@@ -15,7 +16,7 @@ export split_seen_unseen
 export bootstrap_histogram, bootstrap_histogram!, PlotableDict
 
 # for use in this module:
-import DataFrames: DataFrame, AbstractDataFrame, names
+import DataFrames: DataFrame, AbstractDataFrame, names, eltypes
 import CSV
 import StatsBase: sample
 import Missings: Missing, missing, skipmissing, ismissing
@@ -37,7 +38,7 @@ function inverse_transform end
 function default_transformer_X end
 function default_transformer_y end
 
-## HELPERS
+## HELPERS AND CONVENIENCE FUNCTIONS
 
 function ismissingtype(T::Type)
     if isa(T, Union)
@@ -54,6 +55,8 @@ end
 leadingtype(T::Union) = T.a::Type # for extacting pure type from missing type
 
 hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != 0
+
+countmissing(v::AbstractVector) = count(ismissing, v)
 
 """ convert a vector of eltype `Union{T, Missings.Missing}` to one of eltype `T`"""
 function purify(v::AbstractVector)
@@ -177,6 +180,17 @@ function bootstrap_resample_of_mean(v; n=10^6)
     return simulated_means
 end
 
+""" 
+    get_meta(df)
+
+Return very short description of an `AbstractDataFrame`, `df`.
+
+"""
+function get_meta(df::AbstractDataFrame)
+    return DataFrame(feature=names(df),
+                     eltype=eltypes(df),
+                     n_missing=[countmissing(df[j]) for j in 1:size(df, 2)])
+end
 
 ## `BaseType` - base type for external `Koala` structs in dependent packages.  
 
