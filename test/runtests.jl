@@ -108,3 +108,5 @@ learning_curve(mach, train, test, [2, 4, 8, 1000], raw=false)
 learning_curve(mach, train, test, [2000, 3000], restart=false)
 cv(mach, vcat(test, train))
 
+# test compete function:
+@test compete(randn(1000) + 5, randn(1000))[1] == '1'

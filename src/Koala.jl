@@ -11,7 +11,7 @@ export ConstantRegressor
 export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
 export Machine
-export learning_curve, cv, @colon, @curve, @pcurve
+export learning_curve, cv, compete, @colon, @curve, @pcurve
 export split_seen_unseen
 export bootstrap_histogram, bootstrap_histogram!, PlotableDict
 
@@ -19,6 +19,7 @@ export bootstrap_histogram, bootstrap_histogram!, PlotableDict
 import DataFrames: DataFrame, AbstractDataFrame, names, eltypes
 import CSV
 import StatsBase: sample
+import HypothesisTests: OneSampleTTest, pvalue
 import Missings: Missing, missing, skipmissing, ismissing
 using  RecipesBase # for plotting recipes
 
@@ -1102,6 +1103,36 @@ macro pcurve(var1, range, code)
         collect(map(first,pairs)), collect(map(last, pairs))
     end
 end
+
+"""
+## `function compete(e0, e1; alpha=0.05)`
+
+Given paired samples `e0` and `e1`, we test the
+null-hypothesis that the underlying distributions have the same mean,
+using the significance level `alpha`. Normality of the underlying
+distributions is assumed and a two-sided t-test applied. 
+
+### Return value
+
+`(c, p)` where `p` is the p-value for the test and `c` is the competition outcome:
+
+- '0' if the null is rejected and `e0` has the smaller mean (M1 "wins")
+- '1' if the null is rejected and `e1` has the smaller mean (M0 "wins")
+- 'D' if the null is accepted ("draw" because `p > alpha`)
+
+"""
+function compete(e0, e1; alpha=0.05)
+    t = OneSampleTTest(e1-e0)
+    p = pvalue(t)
+    if p > alpha
+        return 'D', p
+    end
+    if mean(e0) < mean(e1)
+        return '0', p
+    end
+    return '1', p
+end
+
 
 """ 
 ## `function split_seen_unseen`
