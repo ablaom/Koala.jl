@@ -554,14 +554,15 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         verbosity < 1 || info("Element types of input features before transformation:")
         for field in names(X)
             T = eltype(X[field])
+            real_categorical = T <: Real ? "continuous" : "categorical"
             if ismissingtype(T)
                 if verbosity > -1
                     warn(":$field has a missing-element type. ")
                 else 
-                    verbosity > 0 ? info("  :$field \t=> $T") : nothing
+                    verbosity > 0 ? info("  :$field \t=> $T ($real_categorical)") : nothing
                 end
             else
-                verbosity > 0 ? info("  :$field \t=> $T") : nothing
+                verbosity > 0 ? info("  :$field \t=> $T ($real_categorical)") : nothing
             end
         end
 

@@ -19,6 +19,9 @@ X, y = load_ames();
 # wanted. We can check for missing-type columns as follows:
 [ismissingtype(eltype(X[j])) for j in 1:size(X, 2)]
 
+# Or get a summary of eltype information:
+get_meta(X)
+
 # In Koala, normal practice is to store training and test data in a
 # single `DataFrame`, `X`, padding unknown instances of the target
 # `y`, and to construct integer vectors pointing to the rows of the
