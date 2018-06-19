@@ -21,6 +21,8 @@ Julia REPL.
 
 [KoalaRidge](https://github.com/ablaom/KoalaRidge.jl): Ridge regression and classification
 
+[KoalaKNN](https://github.com/ablaom/KoalaKNN.jl): K-nearest neighbor 
+
 At present the above implement supervised regression (todo:
 classification). To learn how to wrap your favourite machine learning
 code for use in Koala, refer to:
