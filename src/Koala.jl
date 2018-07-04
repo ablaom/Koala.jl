@@ -1,8 +1,8 @@
-#__precompile__()
+__precompile__()
 module Koala
 
 # new: 
-export @more, @dbg, keys_ordered_by_values, bootstrap_resample_of_mean, params
+export @more, @dbg, @colon, keys_ordered_by_values, bootstrap_resample_of_mean, params
 export load_boston, load_ames, datanow
 export hasmissing, countmissing, ismissingtype, purify
 export get_meta
@@ -1277,7 +1277,7 @@ end
             bootstrap
         end
     else
-        info("For denisty approximation in a bootstrap_histogram, import StatsPlots.")
+        info("For denisty approximation in a bootstrap_histogram, import StatPlots.")
     end
 end
 
