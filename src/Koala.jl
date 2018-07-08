@@ -257,19 +257,15 @@ function Base.showall(stream::IO, object::BaseType;
 end
 
 
-## Abstract model types
+## ABSTRACT MODEL TYPES
 
-# Here *models* are simply small data structures storing parameters
-# describing *what* is to be done with some data (rather than *how*
-# this is to be done). In the simplest case, the *type* of the model
-# itself, may suffice to deptermine what is to be done (see the model
-# type `UnivariateStandardizer` defined below). As a more complex
-# example, consider the learning task requiring one-hot encoding the
-# categorical features of some input patterns, standardizing the
-# corresonding target values, and training a tree gradient booster on
-# that data. The model parameters (ie its fields) will then involve
-# flags describing the transformations required, and parameters such
-# as the degree of L2 regularization of the booster weights.
+# Subtypes of `Model` store the hyperparameters of some data
+# processing algorithm; for example, how deep a decision tree should
+# be, or the magnitude of the l2 regularization penalty in ridge
+# regression. These parameters are distinct from variables that are
+# *learned* by the model, such as the coefficients (weights) in a
+# linear model.
+
 abstract type Model <: BaseType end
 
 # An abstract type for transformation models:
@@ -344,7 +340,7 @@ end
 
 function err(rgs::Regressor, predictor, X, y, rows,
              parallel, verbosity, loss::Function=rms)
-    return loss(y[rows], predict(rgs, predictor, X, rows, parallel, verbosity))
+    return loss(view(y, rows), predict(rgs, predictor, X, rows, parallel, verbosity))
 end
 
 function err(rgs::Regressor, predictor, X, y,
@@ -355,19 +351,19 @@ end
 # TODO: Classifier loss and error functions
 
 
-## Machines
+## MACHINES
 
 # A *machine* is a larger structure wrapping around the model extra
-# data needed to carry out, at various stages, a data processing (eg
-# learning) task. Certain parameters of the model will have to be
-# tuned during training and we call these *hyperparameters*. If a
-# preliminary part of the task (eg one-hot encoding inputs) does not
-# depend on the values of hyperparameters, then these tasks will be
-# performed already during the machine's construction (instantiation).
+# data needed to carry out, at various stages, a data processing
+# task. Certain parameters of the model will have to be tuned during
+# training and we call these *hyperparameters*. If a preliminary part
+# of the task (eg one-hot encoding inputs) does not depend on the
+# values of hyperparameters, then these tasks will be performed
+# already during the machine's construction (instantiation).
 abstract type Machine <: BaseType end
 
 
-## Machines for transforming
+## MACHINES FOR TRANSFORMING
 
 struct TransformerMachine{T <: Transformer} <: Machine
 
@@ -452,8 +448,9 @@ inverse_transform(transformer::IdentityTransformer, scheme, y) = y
 """
     struct RowsTransformer <: Transformer
 
-A special transformer mapping `AbstractVector{Int}`s to `AbstractVector{Int}`s, to
-deal with dropping rows from a input `DataFrame`.
+A special transformer mapping `AbstractVector{Int}`s to
+`AbstractVector{Int}`s, to deal with dropping rows from an input
+`DataFrame`.
 
 Suppose `df` is a `DataFrame` and `bad` is a vector of indices for
 rows that have been dropped from `df` to form `df_safe`. Given a
@@ -487,10 +484,10 @@ function fit(transformer::RowsTransformer, missing_indices, parallel, verbosity)
     return scheme
 end
 transform(transformer::RowsTransformer, scheme, rows) =
-    collect(skipmissing(scheme[rows]))
+    collect(skipmissing(view(scheme, rows)))
 
 
-## Machines for supervised learning
+## MACHINES FOR SUPERVISED LEARNING
 
 """ 
 ## `mutable struct SupervisedMachine`
@@ -499,10 +496,10 @@ transform(transformer::RowsTransformer, scheme, rows) =
 
     drop_unseen=false
 
-All calls to `fit!`, `err` and `learning_curve` on the machine will
-ignore rows with categorical features taking on values not seen in
-training. Note: The `predict` method cannot be safely called on data
-containing such rows.
+All calls to `fit!`, `err`, `cv` and `learning_curve` on the machine
+will ignore rows with categorical features taking on values not seen
+in training. Note: The `predict` method cannot be safely called on
+data containing such rows.
 
     features = Symbol[]
 
@@ -548,8 +545,8 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
 
         # bind `X` to view of `X` containing only the features
-        # specified, in the order specified:
-        X = X[:, features]
+        # specified, in the order specified (does not generate copy):
+        X = X[features]        
 
         # check for missing data and report eltypes:
         verbosity < 1 || info("Element types of input features before transformation:")
@@ -617,7 +614,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         mach = new{P, M}(model::M)
         mach.transformer_X = transformer_X
         mach.transformer_y = transformer_y
-        mach.scheme_X = fit(mach.transformer_X, X[train_rows, :],
+        mach.scheme_X = fit(mach.transformer_X, view(X, train_rows),
                             true, verbosity - 1)
         mach.scheme_y = fit(mach.transformer_y, y[train_rows], verbosity - 1, 1)
         mach.rows_with_unseen = unseen
@@ -644,8 +641,8 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
             all_good_rows = filter(eachindex(y)) do i
                 !(i in unseen)
             end
-            mach.Xt = transform(mach.transformer_X, mach.scheme_X, X[all_good_rows,:])
-            mach.yt = transform(mach.transformer_y, mach.scheme_y, y[all_good_rows])
+            mach.Xt = transform(mach.transformer_X, mach.scheme_X, view(X, all_good_rows))
+            mach.yt = transform(mach.transformer_y, mach.scheme_y, view(y, all_good_rows))
         end
         
         mach.n_iter = 0
@@ -735,7 +732,7 @@ end
 
 function predict(mach::SupervisedMachine, X, rows; parallel=true, verbosity=1)
     mach.n_iter > 0 || error(string(mach, " has not been fitted."))
-    Xt = transform(mach.transformer_X, mach.scheme_X, X[rows,:])
+    Xt = transform(mach.transformer_X, mach.scheme_X, view(X, rows))
     yt = predict(mach.model, mach.predictor, Xt, parallel, verbosity)
     return inverse_transform(mach.transformer_y, mach.scheme_y, yt)
 end
@@ -770,10 +767,10 @@ function err(mach::SupervisedMachine, test_rows;
                             parallel, verbosity) 
 
     if raw # return error on *transformed* target, which is faster
-        return loss(raw_predictions, mach.yt[test_rows])
+        return loss(raw_predictions, view(mach.yt, test_rows))
     else  # return error for untransformed target
         return loss(inverse_transform(mach.transformer_y, mach.scheme_y, raw_predictions),
-           inverse_transform(mach.transformer_y, mach.scheme_y, mach.yt[test_rows]))
+           inverse_transform(mach.transformer_y, mach.scheme_y, view(mach.yt, test_rows)))
     end
 end
 
@@ -787,14 +784,23 @@ default_transformer_y(model::SupervisedModel) = IdentityTransformer()
 # for enforcing model parameter invariants:
 clean!(model::SupervisedModel) = "" # no checks, emtpy message
 
-# to allow for an extra `rows` argument (depreceate?):
+# To allow for an extra `rows` argument in `setup` and `predict`:
+
+# 1. fallbacks:
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
-    setup(model, Xt[rows,:], yt[rows], scheme_X, parallel, verbosity) 
+    setup(model, Xt[rows,:], view(yt, rows), scheme_X, parallel, verbosity)
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
+# 2. when `view` method implemented on the type of `Xt`:
+HasView = Union{AbstractDataFrame,Array}
+setup(model::SupervisedModel, Xt::HasView, yt, rows, scheme_X, parallel, verbosity) =
+    setup(model, view(Xt, rows), view(yt, rows), scheme_X, parallel, verbosity)
+predict(model::SupervisedModel, predictor, Xt::HasView, rows, parallel, verbosity) =
+    predict(model, predictor, view(Xt, rows), parallel, verbosity)
 
-## Constant-predicting regressor (a `Regressor` example)
+
+## CONSTANT-PREDICTING REGRESSOR (A `REGRESSOR` EXAMPLE)
 
 # Note: To test iterative methods, we give the following simple regressor
 # model a "bogus" field `n` for counting the number of iterations (which
@@ -822,7 +828,7 @@ function predict(rgs::ConstantRegressor, predictor, X, parallel, verbosity)
 end
 
     
-## Validation tools
+## VALIDATION TOOLS
 
 """
 ## split(rows::AbstractVector{Int}, fractions...)
@@ -895,7 +901,6 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
         verbosity < 1 ||
             info("Ignoring rows with categorical data values "*
                  "not seen in transformation.")
-        train_rows = transform(mach.rows_transformer_machine, train_rows)
         train_rows = transform(mach.rows_transformer_machine, train_rows)
     end
 
@@ -1142,14 +1147,14 @@ end
 Detects on which indices in `test_indices` the `AbstractVector`, `v`,
 takes on values not occuring in the `train_indices` part of the
 vector. Returns a pair of integer vectors `(S, U)` where `S` are the
-unseen indices and `U` the unseen ones.
+seen indices and `U` the unseen ones.
 
     split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
 
-Detects the rows in `test_rows` for which some categorical feature of
-`df` takes on a value not observed in `train_rows`. Returns a pair of
-integer vectors `(S, U)` where `S` are the unseen rows and `U` the
-unseen ones.
+Detects the rows in `test_rows` for which any of the categorical
+features of `df` takes on a value not observed in
+`train_rows`. Returns a pair of integer vectors `(S, U)` where `S` are
+the unseen rows and `U` the unseen ones.
 
 """
 function split_seen_unseen(v::AbstractVector, train_rows, test_rows)
