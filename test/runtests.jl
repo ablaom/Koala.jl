@@ -2,6 +2,16 @@ using Koala
 using Base.Test
 using DataFrames
 
+# loss functions:
+y = [1, 2, 3, 4]
+yhat = y + 1
+@test isapprox(rms(y, yhat), 1.0)
+@test isapprox(rmsl(y, yhat),
+               sqrt((log(1/2)^2 + log(2/3)^2 + log(3/4)^2 + log(4/5)^2)/4))
+@test isapprox(rmslp1(y, yhat),
+               sqrt((log(2/3)^2 + log(3/4)^2 + log(4/5)^2 + log(5/6)^2)/4))
+@test isapprox(rmsp(y, yhat), sqrt((1 + 1/4 + 1/9 + 1/16)/4))
+
 # helpers:
 dict = Dict{String,Int}()
 dict["c"] = 3
