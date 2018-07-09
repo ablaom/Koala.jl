@@ -6,7 +6,7 @@ export @more, @dbg, @colon, keys_ordered_by_values, bootstrap_resample_of_mean, 
 export load_boston, load_ames, datanow
 export hasmissing, countmissing, ismissingtype, purify
 export get_meta
-export fit!, predict, rms, rmsl, rmslp1, err, transform, inverse_transform
+export fit!, predict, rms, rmsl, rmslp1, rmsp, err, transform, inverse_transform
 export ConstantRegressor
 export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
@@ -336,6 +336,33 @@ function rmslp1(y, yhat)
         ret += (log(y[i] + 1) - log(yhat[i] + 1))^2
     end
     return sqrt(ret/length(y))
+end
+
+""" Root mean squared percentage loss """
+function rmsp(y, yhat, rows)
+    length(y) == length(yhat) || throw(DimensionMismatch())
+    ret = 0.0
+    count = 0
+    for i in rows
+        if y[i] != 0.0
+            ret += ((y[i] - yhat[i])/y[i])^2
+            count += 1
+        end
+    end
+    return sqrt(ret/count)
+end
+
+function rmsp(y, yhat)
+    length(y) == length(yhat) || throw(DimensionMismatch())
+    ret = 0.0
+    count = 0
+    for i in eachindex(y)
+        if y[i] != 0.0
+            ret += ((y[i] - yhat[i])/y[i])^2
+            count += 1
+        end
+    end
+    return sqrt(ret/count)
 end
 
 function err(rgs::Regressor, predictor, X, y, rows,
