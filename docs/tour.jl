@@ -8,8 +8,8 @@ X, y = load_ames();
 
 # Note that `X`, which stores the input patterns, is a `DataFrame`
 # object; the high-level Koala interface expects all inputs to be
-# `DataFrame` objects. Columns of element type `T <: Real` are treated
-# as numerical features; all others are treated as
+# `DataFrame` objects. Columns of element type `T <: AbstractFloat`
+# are treated as numerical features; all others are treated as
 # categorical.
 
 # Not in particular that a missing-type column - i.e., a column `col`
@@ -145,7 +145,7 @@ n_vals, errs = learning_curve(forestM, train, valid, 20:10:400)
 lineplot(n_vals, errs)
 
 # So the following is reasonable:
-forest.n = 300
+forest.n = 250
 
 # Commonly in ensemble methods, predictions are the means of the
 # predictions of each regressor in the ensemble. Here predictions are
