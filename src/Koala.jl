@@ -579,7 +579,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         verbosity < 1 || info("Element types of input features before transformation:")
         for field in names(X)
             T = eltype(X[field])
-            real_categorical = T <: Real ? "continuous" : "categorical"
+            real_categorical = (T <: AbstractFloat ? "continuous" : "categorical")
             if ismissingtype(T)
                 if verbosity > -1
                     warn(":$field has a missing-element type. ")
@@ -1202,7 +1202,7 @@ function split_seen_unseen(df::AbstractDataFrame, train_rows, test_rows)
     # collect all rows with unseen categorical values together:
     unseen_rows = Int[]
     for j in 1:size(df, 2)
-        if !(eltype(df[j]) <: Real)
+        if !(eltype(df[j]) <: AbstractFloat)
             seen, unseen = split_seen_unseen(df[j], train_rows, test_rows)
             append!(unseen_rows, unseen)
         end
@@ -1230,7 +1230,9 @@ end
 """
     PlotableDict(d)
 
-Returns a wrapped version of the dictionary `d` (assumed to have `Real` values) to enable plotting with calls to `Plot.plot`, etc (provided by a `Plots` recipe). In particular, 
+Returns a wrapped version of the dictionary `d` (assumed to have
+`Real` values) to enable plotting with calls to `Plot.plot`, etc
+(provided by a `Plots` recipe). In particular,
 
     plot(PlotableDict(d), ordered_by_keys=true)
 
