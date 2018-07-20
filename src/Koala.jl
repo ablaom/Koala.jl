@@ -139,7 +139,7 @@ datanow=load_ames
 """ `showall` method for dictionaries with markdown format"""
 function Base.showall(stream::IO, d::Dict)
     print(stream, "\n")
-    println(stream, "key                     | value")
+    println(stream, "key or field            | value")
     println(stream, "-"^COLUMN_WIDTH * "|" * "-"^COLUMN_WIDTH)
     kys = keys(d) |> collect |> sort
     for k in kys
@@ -282,7 +282,7 @@ abstract type Regressor{P} <: SupervisedModel{P} end
 abstract type Classifier{P} <: SupervisedModel{P} end
 
 
-## Loss and low-level error functions
+## LOSS AND LOW-LEVEL ERROR FUNCTIONS
 
 function rms(y, yhat, rows)
     length(y) == length(yhat) || throw(DimensionMismatch())
@@ -804,6 +804,9 @@ end
 
 ## `SupervisedModel`  fall-back methods
 
+# By default all supervised model types can be ensembled. 
+supports_ensembling(model::SupervisedModel) = true
+
 # default default_transformers:
 default_transformer_X(model::SupervisedModel) = FeatureSelector()
 default_transformer_y(model::SupervisedModel) = IdentityTransformer()
@@ -821,8 +824,8 @@ predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
 
 # 2. when `view` method implemented on the type of `Xt`:
 HasView = Union{AbstractDataFrame,Array}
-setup(model::SupervisedModel, Xt::HasView, yt, rows, scheme_X, parallel, verbosity) =
-    setup(model, view(Xt, rows), view(yt, rows), scheme_X, parallel, verbosity)
+# setup(model::SupervisedModel, Xt::HasView, yt, rows, scheme_X, parallel, verbosity) =
+#     setup(model, view(Xt, rows), view(yt, rows), scheme_X, parallel, verbosity)
 predict(model::SupervisedModel, predictor, Xt::HasView, rows, parallel, verbosity) =
     predict(model, predictor, view(Xt, rows), parallel, verbosity)
 
