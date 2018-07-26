@@ -417,23 +417,26 @@ abstract type Machine <: BaseType end
 
 ## MACHINES FOR TRANSFORMING
 
-abstract type Scheme <: BaseType end
-
 struct TransformerMachine{T<:Transformer} <: Machine
     transformer::T
     scheme
-    
-    function TransformerMachine{T}(transformer::T, X;
-                                   parallel::Bool=true,
-                                   verbosity::Int=1, args...) where T <: Transformer
-        scheme = fit(transformer, X, parallel, verbosity; args...)
+
+    function TransformerMachine{T}(transformer::T, scheme, ::Colon) where T <: Transformer
         return new{T}(transformer, scheme)
     end
-
 end
 
-TransformerMachine(transformer::T, X; args...) where T <: Transformer =
-    TransformerMachine{T}(transformer, X; args...)
+function TransformerMachine(transformer::T, scheme, ::Colon) where T <: Transformer
+    return TransformerMachine{T}(transformer, scheme, :)
+end
+
+# usual contructor:
+function TransformerMachine(transformer::T, X;
+                               parallel::Bool=true,
+                               verbosity::Int=1, args...) where T <: Transformer
+    scheme = fit(transformer, X, parallel, verbosity; args...)
+    return TransformerMachine(transformer, scheme, :)
+end
 
 Machine(transformer::Transformer, X; args...) =
     TransformerMachine(transformer, X; args...)
