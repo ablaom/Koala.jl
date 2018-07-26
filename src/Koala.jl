@@ -2,7 +2,8 @@ __precompile__()
 module Koala
 
 # new: 
-export @more, @dbg, @colon, keys_ordered_by_values, bootstrap_resample_of_mean, params
+export @more, @dbg, @colon, keys_ordered_by_values, params
+export bootstrap_resample_of_mean, bootstrap_resample_of_median
 export load_boston, load_ames, datanow
 export hasmissing, countmissing, ismissingtype, purify
 export get_meta
@@ -13,7 +14,9 @@ export default_transformer_X, default_transformer_y, clean!
 export Machine
 export learning_curve, cv, compete, @colon, @curve, @pcurve
 export split_seen_unseen
-export bootstrap_histogram, bootstrap_histogram!, PlotableDict
+export bootstrap_histogram_of_mean, bootstrap_histogram_of_mean!, PlotableDict
+export bootstrap_histogram_of_median, bootstrap_histogram_of_median!
+
 
 # for use in this module:
 import DataFrames: DataFrame, AbstractDataFrame, names, eltypes
@@ -163,7 +166,7 @@ end
 bootstrap_resample_of_mean(v; n=10^6)
 ````
 
-Returns a vector of `n` estimates of the mean of the distribution
+Returns a vector of `n` estimates of the of the distribution
 generating the samples in `v` from `n` bootstrap resamples of `v`.
 
 """
@@ -179,6 +182,28 @@ function bootstrap_resample_of_mean(v; n=10^6)
         simulated_means[i]=mean(pseudo_sample)
     end
     return simulated_means
+end
+"""
+````
+bootstrap_resample_of_median(v; n=10^6)
+````
+
+Returns a vector of `n` estimates of the median of the distribution
+generating the samples in `v` from `n` bootstrap resamples of `v`.
+
+"""
+function bootstrap_resample_of_median(v; n=10^6)
+
+    n_samples = length(v)
+    mu = median(v)
+
+    simulated_medians = Array{Float64}(n)
+
+    for i in 1:n
+        pseudo_sample = sample(v, n_samples, replace=true)
+        simulated_medians[i]=median(pseudo_sample)
+    end
+    return simulated_medians
 end
 
 """ 
@@ -392,11 +417,12 @@ abstract type Machine <: BaseType end
 
 ## MACHINES FOR TRANSFORMING
 
-struct TransformerMachine{T <: Transformer} <: Machine
+abstract type Scheme <: BaseType end
 
+struct TransformerMachine{T<:Transformer} <: Machine
     transformer::T
     scheme
-
+    
     function TransformerMachine{T}(transformer::T, X;
                                    parallel::Bool=true,
                                    verbosity::Int=1, args...) where T <: Transformer
@@ -446,7 +472,7 @@ struct EmptyTransformer <: Transformer end
 Base.isempty(transformer::Transformer) = false
 Base.isempty(transformer::EmptyTransformer) = true
 
-# for (a) remembering the features used in `fit` (calibration), in
+# For (a) remembering the features used in `fit` (calibration), in
 # order presented, and selecting only those on tranforming new data
 # frames; or (b) selecting only feature labels specified in the
 # tranformer:
@@ -1274,28 +1300,28 @@ end
 
 end
             
-mutable struct BootstrapHistogram 
+mutable struct BootstrapHistogramOfMean 
         args
 end 
 
 """
-    bootstrap_histogram(v; n=1e6, plotting_kws...)
+    bootstrap_histogram_of_mean(v; n=1e6, plotting_kws...)
 
 Create a bootstrap sample of size `n` from `v` and plot the
 corresponding histogram.
 
 """
-bootstrap_histogram(args...; kw...) = begin  
-            RecipesBase.plot(BootstrapHistogram(args); kw...)
+bootstrap_histogram_of_mean(args...; kw...) = begin  
+            RecipesBase.plot(BootstrapHistogramOfMean(args); kw...)
 end
 
-bootstrap_histogram!(args...; kw...) = begin  
-    RecipesBase.plot!(BootstrapHistogram(args); kw...)
+bootstrap_histogram_of_mean!(args...; kw...) = begin  
+    RecipesBase.plot!(BootstrapHistogramOfMean(args); kw...)
 end
 
-@recipe function dummy(h::BootstrapHistogram; n=10^6)
+@recipe function dummy(h::BootstrapHistogramOfMean; n=10^6)
     length(h.args) == 1 || typeof(h.args) <: AbstractVector ||
-        error("A BootstrapHistogram should be given one vector. Got: $(typeof(h.args))")
+        error("A BootstrapHistogramOfMean should be given one vector. Got: $(typeof(h.args))")
     v = h.args[1]
     bootstrap = bootstrap_resample_of_mean(v; n=n)
     @series begin
@@ -1314,9 +1340,54 @@ end
             bootstrap
         end
     else
-        info("For denisty approximation in a bootstrap_histogram, import StatPlots.")
+        info("For denisty approximation in a bootstrap_histogram_of_mean, import StatPlots.")
     end
 end
+
+mutable struct BootstrapHistogramOfMedian 
+        args
+end 
+
+"""
+    bootstrap_histogram_of_median(v; n=1e6, plotting_kws...)
+
+Create a bootstrap sample of size `n` from `v` and plot the
+corresponding histogram.
+
+"""
+bootstrap_histogram_of_median(args...; kw...) = begin  
+            RecipesBase.plot(BootstrapHistogramOfMean(args); kw...)
+end
+
+bootstrap_histogram_of_median!(args...; kw...) = begin  
+    RecipesBase.plot!(BootstrapHistogramOfMean(args); kw...)
+end
+
+@recipe function dummy(h::BootstrapHistogramOfMedian; n=10^6)
+    length(h.args) == 1 || typeof(h.args) <: AbstractVector ||
+        error("A BootstrapHistogramOfMedian should be given one vector. Got: $(typeof(h.args))")
+    v = h.args[1]
+    bootstrap = bootstrap_resample_of_median(v; n=n)
+    @series begin
+        seriestype := :histogram
+        alpha --> 0.5
+        normalized := true
+        bins --> 50
+        bootstrap
+    end
+    if isdefined(:StatPlots) 
+        @series begin
+            seriestype := :density
+            label := ""
+            linewidth --> 2
+            color --> :black
+            bootstrap
+        end
+    else
+        info("For denisty approximation in a bootstrap_histogram_of_median, import StatPlots.")
+    end
+end
+
 
 
 end # module
