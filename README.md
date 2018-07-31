@@ -1,6 +1,6 @@
 # Koala ![](logo.png) 
 
-A Julia machine learning environment combining convince and control,
+A Julia machine learning environment combining convenience and control,
 through a combination of high and low-level interfaces. Currently in
 development and experimental.
 
@@ -10,10 +10,10 @@ data. In particular, all learning algorithms receive learning data in
 a common format (a `DataFrame` object) with all algorithm-specific
 transformations occurring under the hood. This allows for the quick and
 efficient comparison of several learning models. To mitigate against
-data leakage data transformations are "fit" on training data
+data leakage, data transformations are "fit" on training data
 only. However, there is a provision for dealing automatically in
 testing or (cross) validation with classes of categorical variables
-not seen during in the fit.
+not seen during in the fit, a common annoyance.
 
 For an introductory tour, clone the repositories into directories that your
 Julia installation can find and run [docs/tour.jl](docs/tour.jl) in your
