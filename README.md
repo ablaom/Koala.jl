@@ -23,8 +23,15 @@ Julia REPL.
 
 [KoalaKNN](https://github.com/ablaom/KoalaKNN.jl): K-nearest neighbor 
 
+[KoalaTransforms](https://github.com/ablaom/KoalaTransforms.jl): A library of common data transformations (and dependency of several of the other libraries)
+
+KoalaFlux (coming soon): A wrap of Mike Innes beautiful Julia
+implementation of neural networks, including a facility to learn
+categorical feature embeddings.
+
 At present the above implement supervised regression (todo:
 classification). To learn how to wrap your favourite machine learning
 code for use in Koala, refer to:
 
 [KoalaLow](https://github.com/ablaom/KoalaLow.jl): To expose Koala's low-level interface
+
