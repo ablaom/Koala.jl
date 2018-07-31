@@ -881,13 +881,6 @@ setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
     predict(model, predictor, Xt[rows,:], parallel, verbosity)
 
-# 2. when `view` method implemented on the type of `Xt`:
-HasView = Union{AbstractDataFrame,Array}
-# setup(model::SupervisedModel, Xt::HasView, yt, rows, scheme_X, parallel, verbosity) =
-#     setup(model, view(Xt, rows), view(yt, rows), scheme_X, parallel, verbosity)
-predict(model::SupervisedModel, predictor, Xt::HasView, rows, parallel, verbosity) =
-    predict(model, predictor, view(Xt, rows), parallel, verbosity)
-
 
 ## CONSTANT-PREDICTING REGRESSOR (A `REGRESSOR` EXAMPLE)
 

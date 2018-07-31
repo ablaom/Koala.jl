@@ -13,7 +13,7 @@ efficient comparison of several learning models. To mitigate against
 data leakage, data transformations are "fit" on training data
 only. However, there is a provision for dealing automatically in
 testing or (cross) validation with classes of categorical variables
-not seen during in the fit, a common annoyance.
+not seen during the fit, a common annoyance.
 
 ### Installation and usage
 
