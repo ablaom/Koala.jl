@@ -1,9 +1,19 @@
 # Koala ![](logo.png) 
 
 A Julia machine learning environment combining convience and control,
-through a combination of high and low-level interfaces. 
+through a combination of high and low-level interfaces. Currently in
+development and experimental.
 
-Currently in development and experimental.
+A common high-level interface is provided through the systematic
+implementation of default pre-transformations of training and testing
+data. In particular, all learning algorithms receive learning data in
+a common format (a `DataFrame` object) with all algorithm-specific
+transformations occuring under the hood. This allows for the quick and
+efficient comparison of several learning models. To mitigage against
+data leakage data transformations are "fit" on training data
+only. However, there is a provision for dealing automatically in
+testing or (cross) validation with classes of categorical variables
+not seen during in the fit.
 
 For an introductory tour, clone the repositories into directories that your
 julia installation can find and run [docs/tour.jl](docs/tour.jl) in your
