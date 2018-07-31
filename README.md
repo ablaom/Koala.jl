@@ -15,9 +15,11 @@ only. However, there is a provision for dealing automatically in
 testing or (cross) validation with classes of categorical variables
 not seen during in the fit, a common annoyance.
 
+### Installation and usage
+
 For an introductory tour, clone the repositories into directories that your
 Julia installation can find and run [docs/tour.jl](docs/tour.jl) in your
-Julia REPL.
+Julia REPL. Note that Koala and associated libraries require Julia 0.6.
 
 ### Current Koala machine learning library
 
