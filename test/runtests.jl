@@ -28,9 +28,9 @@ v = [1,2,5,4,missing,7,missing]
 v[5] = 42; v[7] = 42
 @test eltype(purify(v)) == Int
 
-
 X, y = load_boston();
 train, test = split(eachindex(y), 0.8); # 80:20 split
+showcols(X)
 get_meta(X)
 
 transformer = Koala.FeatureSelector(features=[:Indus, :Chas])

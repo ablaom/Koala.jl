@@ -17,14 +17,16 @@ export split_seen_unseen
 export bootstrap_histogram_of_mean, bootstrap_histogram_of_mean!, PlotableDict
 export bootstrap_histogram_of_median, bootstrap_histogram_of_median!
 
-
 # for use in this module:
-import DataFrames: DataFrame, AbstractDataFrame, names, eltypes
+import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, showcols
 import CSV
 import StatsBase: sample
 import HypothesisTests: OneSampleTTest, pvalue
 import Missings: Missing, missing, skipmissing, ismissing
 using  RecipesBase # for plotting recipes
+
+# reexport:
+export showcols
 
 # extended in this module:
 import Base: show, showall, isempty, split
@@ -41,6 +43,51 @@ function transform end
 function inverse_transform end
 function default_transformer_X end
 function default_transformer_y end
+
+## ON TERMINOLOGY AND THE MAIN TYPES
+
+# 1. *Transformers and schemes*. A subtype of `Transformer` is a
+# `struct` identifying a type of data transformation whose objects
+# (*transformers*) store associated hyperparemeters. For example, a
+# `ToIntTransformer` object (defined in KoalaTransformer.jl) relabels
+# non-numeric vectors with integer vectors, the first integer being
+# given by the value of the hyperparameter `initial_label` (0 or 1,
+# say). A transformer does *not* store the actual data encoding the
+# transformation (the relabelling in our example). This information
+# (called a *scheme*) is part of a transformer *machine* (see below).
+
+# 2. *Models and predictors.* A subtype of `Model` is a `struct`
+# associated with some learning algorithm whose objects (*models*)
+# store associated hyperparameters. For example, a `TreeRegressor`
+# object (defined in KoalaTrees.jl) has fields describing the growth
+# of a decision tree, such as the minimim number of training patterns
+# triggering a node split. Such parameters are distinct from variables
+# that are *learned* by the model, such as a decision tree's actual
+# structure, or the coefficients (weights) in a linear model. So a
+# model, in our sense, is distinct from a *predictor*, which is part
+# of a superivised learning *machine* (see below).
+
+# 3. A *transformer machine* is an object used for actually
+# transforming data. It is fit once (to some possibly different data,
+# usually the training data) during instantiation. This fitting wraps
+# the provided transformer with the scheme encoding the
+# transformation.  
+
+# 4. A *supervised learning machine* is an object eventually used to
+# make predictions but is not pre-trained. Rather, during
+# instantiation, it pre-transforms (once) the data to be used for
+# training *and* testing, into a form suitable for the algorithm
+# associated with model supplied (eg, by standardizing or one-hot
+# encoding inputs). The hyperparmaters stored in the model may be
+# changed after instantiation and the machine retrained.
+
+# 5. *Summary*. Tranformers and models just store
+# hyperparemters. Machines do the actual transforming and
+# learning/predicting. So, a supervised learning machine wraps a model
+# in data and, after training, a predictor; a transformer machine
+# wraps a transformer with the scheme encoding the actual
+# transformation.
+
 
 ## HELPERS AND CONVENIENCE FUNCTIONS
 
@@ -162,9 +209,7 @@ end
 
 
 """
-````
-bootstrap_resample_of_mean(v; n=10^6)
-````
+    bootstrap_resample_of_mean(v; n=10^6)
 
 Returns a vector of `n` estimates of the of the distribution
 generating the samples in `v` from `n` bootstrap resamples of `v`.
@@ -183,10 +228,9 @@ function bootstrap_resample_of_mean(v; n=10^6)
     end
     return simulated_means
 end
+
 """
-````
-bootstrap_resample_of_median(v; n=10^6)
-````
+    bootstrap_resample_of_median(v; n=10^6)
 
 Returns a vector of `n` estimates of the median of the distribution
 generating the samples in `v` from `n` bootstrap resamples of `v`.
@@ -283,13 +327,6 @@ end
 
 
 ## ABSTRACT MODEL TYPES
-
-# Subtypes of `Model` store the hyperparameters of some data
-# processing algorithm; for example, how deep a decision tree should
-# be, or the magnitude of the l2 regularization penalty in ridge
-# regression. These parameters are distinct from variables that are
-# *learned* by the model, such as the coefficients (weights) in a
-# linear model.
 
 abstract type Model <: BaseType end
 
@@ -405,13 +442,6 @@ end
 
 ## MACHINES
 
-# A *machine* is a larger structure wrapping around the model extra
-# data needed to carry out, at various stages, a data processing
-# task. Certain parameters of the model will have to be tuned during
-# training and we call these *hyperparameters*. If a preliminary part
-# of the task (eg one-hot encoding inputs) does not depend on the
-# values of hyperparameters, then these tasks will be performed
-# already during the machine's construction (instantiation).
 abstract type Machine <: BaseType end
 
 
@@ -465,7 +495,7 @@ function inverse_transform(mach::TransformerMachine, X; parallel=true, verbosity
 end
 
 
-## Commonly used transformers
+## COMMONLY USED TRANSFORMERS
 
 # a null transformer, useful as default keyword argument
 # (has no fit, transform or inverse_transform methods):
@@ -1009,7 +1039,8 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
 end
 
 """ 
-## `cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms, parallel=true, verbosity=1, raw=false, randomize=false)`
+    cv(mach::SupervisedMachine, rows; 
+       n_folds=9, loss=rms, parallel=true, verbosity=1, raw=false, randomize=false)
 
 Return a list of cross-validation root-mean-squared errors for
 patterns with row indices in `rows`, an iterator that is initially
@@ -1043,7 +1074,7 @@ function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
         test_rows = rows[f:s]
         train_rows = vcat(rows[1:(f - 1)], rows[(s + 1):end])
         fit!(mach, train_rows; parallel=false, verbosity=0)
-        return err(mach, test_rows;
+        return err(mach, test_rows; loss=loss,
                    parallel=false, verbosity=verbosity - 1,
                    raw=raw)
     end
