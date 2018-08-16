@@ -1,7 +1,8 @@
 julia 0.6
-DataFrames
-CSV
-StatsBase
-Missings
-RecipesBase
-HypothesisTests
+DataFrames 0.11.7
+CSV 0.2.5
+StatsBase 0.23.1
+Missings 0.2.10
+RecipesBase 0.3.1
+HypothesisTests 0.7.0
+
