@@ -1037,9 +1037,9 @@ end
     cv(mach::SupervisedMachine, rows; 
        n_folds=9, loss=rms, parallel=true, verbosity=1, raw=false, randomize=false)
 
-Return a list of cross-validation root-mean-squared errors for
-patterns with row indices in `rows`, an iterator that is initially
-randomized when an optional parameter `randomize` is set to `true`.
+Return a list of cross-validation losses for patterns with row indices
+in `rows`, an iterator that is initially randomized when an optional
+parameter `randomize` is set to `true`.
 
 """
 function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
