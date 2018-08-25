@@ -853,10 +853,12 @@ function err(mach::SupervisedMachine, test_rows;
                             parallel, verbosity) 
 
     if raw # return error on *transformed* target, which is faster
-        return loss(raw_predictions, view(mach.yt, test_rows))
+        return loss(view(mach.yt, test_rows), raw_predictions)
     else  # return error for untransformed target
-        return loss(inverse_transform(mach.transformer_y, mach.scheme_y, raw_predictions),
-           inverse_transform(mach.transformer_y, mach.scheme_y, view(mach.yt, test_rows)))
+        return loss(inverse_transform(mach.transformer_y, mach.scheme_y,
+                                      view(mach.yt, test_rows)),
+                    inverse_transform(mach.transformer_y, mach.scheme_y,
+                                      raw_predictions))
     end
 end
 
