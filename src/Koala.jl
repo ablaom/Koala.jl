@@ -4,7 +4,7 @@ module Koala
 # new: 
 export @more, @dbg, @colon, keys_ordered_by_values, params
 export bootstrap_resample_of_mean, bootstrap_resample_of_median
-export load_boston, load_ames, datanow
+export load_boston, load_ames, load_iris, datanow
 export hasmissing, countmissing, ismissingtype, purify
 export get_meta
 export fit!, predict, rms, rmsl, rmslp1, rmsp, err, transform, inverse_transform
@@ -18,15 +18,15 @@ export bootstrap_histogram_of_mean, bootstrap_histogram_of_mean!, PlotableDict
 export bootstrap_histogram_of_median, bootstrap_histogram_of_median!
 
 # for use in this module:
-import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, showcols
+import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, describe
 import CSV
-import StatsBase: sample
+import StatsBase: sample, countmap
 import HypothesisTests: OneSampleTTest, pvalue
 import Missings: Missing, missing, skipmissing, ismissing
 using  RecipesBase # for plotting recipes
 
 # reexport:
-export showcols
+export describe, countmap
 
 # extended in this module:
 import Base: show, showall, isempty, split
@@ -158,7 +158,8 @@ end
     
 """Load a well-known public regression dataset with nominal features."""
 function load_boston()
-    df = CSV.read(joinpath(srcdir, "data", "Boston.csv"))
+    df = CSV.read(joinpath(srcdir, "data", "Boston.csv"),
+                  categorical=false, allowmissing=:none)
     features = filter(names(df)) do f
         f != :MedV
     end
@@ -173,7 +174,8 @@ end
 """Load a reduced version of the well-known Ames Housing dataset,
 having six numerical and six categorical features."""
 function load_ames()
-    df = CSV.read(joinpath(srcdir, "data", "reduced_ames.csv"))
+    df = CSV.read(joinpath(srcdir, "data", "reduced_ames.csv"),
+                  categorical=false, allowmissing=:none)
     features = filter(names(df)) do f
         f != :target
     end
@@ -185,6 +187,21 @@ function load_ames()
     return X, y 
 end
 datanow=load_ames
+
+"""Load a well-known public classification dataset with nominal features."""
+function load_iris()
+    df = CSV.read(joinpath(srcdir, "data", "iris.csv"),
+                  categorical=false, allowmissing=:none)
+    features = filter(names(df)) do f
+        f != :target
+    end
+    X = df[features]
+    for j in 1:size(X, 2)
+        X[j] = purify(X[j])
+    end
+    y = purify(df[:target])
+    return X, y 
+end
 
 """ `showall` method for dictionaries with markdown format"""
 function Base.showall(stream::IO, d::Dict)
@@ -427,12 +444,12 @@ function rmsp(y, yhat)
     return sqrt(ret/count)
 end
 
-function err(rgs::Regressor, predictor, X, y, rows,
+function err(rgs::SupervisedModel, predictor, X, y, rows,
              parallel, verbosity, loss::Function=rms)
     return loss(view(y, rows), predict(rgs, predictor, X, rows, parallel, verbosity))
 end
 
-function err(rgs::Regressor, predictor, X, y,
+function err(rgs::SupervisedModel, predictor, X, y,
              parallel, verbosity, loss::Function=rms)
     return loss(y, predict(rgs, predictor, X, parallel, verbosity))
 end

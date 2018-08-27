@@ -30,7 +30,7 @@ v[5] = 42; v[7] = 42
 
 X, y = load_boston();
 train, test = split(eachindex(y), 0.8); # 80:20 split
-showcols(X)
+describe(X)
 get_meta(X)
 
 transformer = Koala.FeatureSelector(features=[:Indus, :Chas])
@@ -107,9 +107,9 @@ unseen = mach.rows_with_unseen
 seen = filter(test) do i
     !(i in unseen)
 end
-@test mean(y[train]) == mach.predictor
+@test mean(y[train]) ≈ mach.predictor
 yhat = mean(y[train])*ones(length(y))
-@test rms(yhat, y, seen) == score
+@test rms(yhat, y, seen) ≈ score
 println("score = $score")
 fit!(mach) # fit again without recomputing cache
 @test 9 < score && 10 > score
@@ -120,3 +120,6 @@ cv(mach, vcat(test, train))
 
 # test compete function:
 @test compete(randn(1000) + 5, randn(1000))[1] == '1'
+
+load_iris()
+load_ames()
