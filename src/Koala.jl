@@ -18,6 +18,7 @@ export bootstrap_histogram_of_mean, bootstrap_histogram_of_mean!, PlotableDict
 export bootstrap_histogram_of_median, bootstrap_histogram_of_median!
 
 # for use in this module:
+using Statistics
 import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, describe
 import CSV
 import StatsBase: sample, countmap
@@ -92,17 +93,7 @@ function default_transformer_y end
 
 ## HELPERS AND CONVENIENCE FUNCTIONS
 
-function ismissingtype(T::Type)
-    if isa(T, Union)
-        fields = fieldnames(T)
-        if length(fields) == 2
-            if Missing in [getfield(T, f) for f in fields]
-                return true
-            end
-        end
-    end
-    return false
-end
+ismissingtype(T::Type) = isa(T, Union) && T.a == Missing
 
 leadingtype(T::Union) = T.a::Type # for extacting pure type from missing type
 
@@ -239,7 +230,7 @@ function bootstrap_resample_of_mean(v; n=10^6)
     n_samples = length(v)
     mu = mean(v)
 
-    simulated_means = Array{Float64}(n)
+    simulated_means = Array{Float64}(undef, n)
 
     for i in 1:n
         pseudo_sample = sample(v, n_samples, replace=true)
@@ -577,7 +568,7 @@ struct RowsTransformer <: Transformer
 end
 
 function fit(transformer::RowsTransformer, missing_indices, parallel, verbosity)
-    scheme = Array{Union{Int,Missing}}(transformer.original_num_rows)
+    scheme = Array{Union{Int,Missing}}(undef, transformer.original_num_rows)
     counter = 1
     for i in 1:transformer.original_num_rows
         if i in missing_indices
@@ -1106,7 +1097,7 @@ function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
             Float64[get_error(firsts[n], seconds[n])]
         end
     else
-        errors = Array{Float64}(n_folds)
+        errors = Array{Float64}(undef, n_folds)
         for n in 1:n_folds
             verbosity < 1 || print("\rfold: $n")
             errors[n] = get_error(firsts[n], seconds[n])
@@ -1183,7 +1174,7 @@ end
 
 macro curve(var1, range1, var2, range2, code)
     quote
-        output = Array{Float64}(length($(esc(range1))), length($(esc(range2))))
+        output = Array{Float64}(undef, length($(esc(range1))), length($(esc(range2))))
         for i1 in eachindex($(esc(range1)))
             $(esc(var1)) = $(esc(range1))[i1]
             for i2 in eachindex($(esc(range2)))

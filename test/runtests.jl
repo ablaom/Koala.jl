@@ -1,10 +1,10 @@
+using Test
 using Koala
-using Base.Test
 using DataFrames
 
 # loss functions:
 y = [1, 2, 3, 4]
-yhat = y + 1
+yhat = y .+ 1
 @test isapprox(rms(y, yhat), 1.0)
 @test isapprox(rmsl(y, yhat),
                sqrt((log(1/2)^2 + log(2/3)^2 + log(3/4)^2 + log(4/5)^2)/4))

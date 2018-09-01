@@ -1,7 +1,13 @@
+name = "Koala"
+uuid = "c4f7a666-ae2a-11e8-1374-b535b12dcbb2"
+authors = ["Anthony D. Blaom <anthony.blaom@gmail.com>"]
+version = "0.1.0"
+
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
