@@ -7,7 +7,7 @@ export bootstrap_resample_of_mean, bootstrap_resample_of_median
 export load_boston, load_ames, load_iris, datanow
 export hasmissing, countmissing, ismissingtype, purify
 export get_meta
-export fit!, predict, rms, rmsl, rmslp1, rmsp, err, transform, inverse_transform
+export fit!, predict, rms, rmsl, rmslp1, rmsp, auc, err, transform, inverse_transform
 export ConstantRegressor
 export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
@@ -22,17 +22,17 @@ import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, describe
 import CSV
 import StatsBase: sample, countmap
 import HypothesisTests: OneSampleTTest, pvalue
-import Missings: Missing, missing, skipmissing, ismissing
 using  RecipesBase # for plotting recipes
+import Distributed.@distributed
 
 # reexport:
 export describe, countmap
 
 # extended in this module:
-import Base: show, showall, isempty, split
+import Base: show, isempty, split
 
 # constants:
-const COLUMN_WIDTH = 24 # for displaying dictionaries with `showall`
+const COLUMN_WIDTH = 24 # for displaying dictionaries with `show`
 const srcdir = dirname(@__FILE__) # the full path for this file
 
 # functions to be extended (provided methods) in dependent packages:
@@ -79,12 +79,13 @@ function default_transformer_y end
 # training *and* testing, into a form suitable for the algorithm
 # associated with model supplied (eg, by standardizing or one-hot
 # encoding inputs). The hyperparmaters stored in the model may be
-# changed after instantiation and the machine retrained.
+# changed after instantiation and retraining the machine retrains
+# using the new hyperparameters..
 
 # 5. *Summary*. Tranformers and models just store
 # hyperparemters. Machines do the actual transforming and
 # learning/predicting. So, a supervised learning machine wraps a model
-# in data and, after training, a predictor; a transformer machine
+# in data and, after training, also a predictor; a transformer machine
 # wraps a transformer with the scheme encoding the actual
 # transformation.
 
@@ -120,36 +121,36 @@ function purify(v::AbstractVector)
     end
 end
     
-""" macro shortcut for showing all of last REPL expression"""
+""" macro shortcut for displaying the last REPL expression"""
 macro more()
     esc(quote
-        showall(Main.ans)
+        show(Main.ans)
     end)
 end
 
-"""convenience macro for printing variable values (eg for degugging)"""
-macro dbg(v)
-    esc(quote
-        print((@colon $v), "=", $v, " ")
-    end)
-end
+# """convenience macro for printing variable values (eg for degugging)"""
+# macro dbg(v)
+#     esc(quote
+#         print((@colon $v), "=", $v, " ")
+#     end)
+# end
 
-macro dbg(v1, v2)
-    esc(quote
-        print((@colon $v1), "=", $v1, " ")
-        println((@colon $v2), "=", $v2, " ")
-    end)
-end
+# macro dbg(v1, v2)
+#     esc(quote
+#         print((@colon $v1), "=", $v1, " ")
+#         println((@colon $v2), "=", $v2, " ")
+#     end)
+# end
 
-macro dbg(v1, v2, v3)
-    esc(quote
-        print((@colon $v1), "=", $v1, " ")
-        print((@colon $v2), "=", $v2, " ")
-        println((@colon $v3), "=", $v3, " ")
-    end)
-end
+# macro dbg(v1, v2, v3)
+#     esc(quote
+#         print((@colon $v1), "=", $v1, " ")
+#         print((@colon $v2), "=", $v2, " ")
+#         println((@colon $v3), "=", $v3, " ")
+#     end)
+# end
 
-""" a version of warn that only warns given a non-empty string."""
+""" a version of warn that only warns given a *non-empty* string."""
 function softwarn(str)
     if !isempty(str)
         warn(str)
@@ -203,15 +204,16 @@ function load_iris()
     return X, y 
 end
 
-""" `showall` method for dictionaries with markdown format"""
-function Base.showall(stream::IO, d::Dict)
+""" show method for dictionaries with markdown format"""
+function show(stream::IO, ::MIME"text/markdown", d::Dict)
     print(stream, "\n")
     println(stream, "key or field            | value")
-    println(stream, "-"^COLUMN_WIDTH * "|" * "-"^COLUMN_WIDTH)
+    println(stream, "-"^COLUMN_WIDTH * "|" * "-"^(2*COLUMN_WIDTH))
     kys = keys(d) |> collect |> sort
+    iocontext = IOContext(stream, :limit=>true, :compact=>true)
     for k in kys
-        key_string = string(k)*" "^(max(0,COLUMN_WIDTH - length(string(k))))
-        println(stream, key_string * "|" * string(d[k]))
+        key_string = string(k)*" "^(max(0,COLUMN_WIDTH - length(string(k))))*"| "
+        println(iocontext, key_string, d[k])
     end
 end
 
@@ -267,47 +269,48 @@ function bootstrap_resample_of_median(v; n=10^6)
     return simulated_medians
 end
 
-""" 
-    get_meta(df)
+# """ 
+#     get_meta(df)
 
-Return very short description of an `AbstractDataFrame`, `df`.
+# Return very short description of an `AbstractDataFrame`, `df`.
 
-"""
-function get_meta(df::AbstractDataFrame)
-    return DataFrame(feature=names(df),
-                     eltype=eltypes(df),
-                     n_missing=[countmissing(df[j]) for j in 1:size(df, 2)])
-end
+# """
+# function get_meta(df::AbstractDataFrame)
+#     return DataFrame(feature=names(df),
+#                      eltype=eltypes(df),
+#                      n_missing=[countmissing(df[j]) for j in 1:size(df, 2)])
+# end
 
 ## `BaseType` - base type for external `Koala` structs in dependent packages.  
 
 abstract type BaseType end
 
-""" Return a dictionary of values keyed on the fields of specified object."""
+""" Return a dictionary of values keyed on the fields of specified
+object, suitable for display"""
 function params(object::BaseType)
     value_given_parameter  = Dict{Symbol,Any}()
-    for name in fieldnames(object)
+    for name in fieldnames(typeof(object))
         if isdefined(object, name)
             value_given_parameter[name] = getfield(object,name)
         else
-            value_given_parameter[name] = "undefined"
+            value_given_parameter[name] = "<undefined>"
         end 
     end
     return value_given_parameter
 end
 
-function name(T::Type)
-    if isa(T, Union)
-        types = [getfield(T, f) for f in fieldnames(T)]
-        if isempty(types)
-            return ""
-        else
-            return string("Union{", types[1], types[2:end]..., "}")
-        end
-    else
-        return T.name.name
-    end
-end
+# function name(T::Type)
+#     if isa(T, Union)
+#         types = [getfield(T, f) for f in fieldnames(T)]
+#         if isempty(types)
+#             return ""
+#         else
+#             return string("Union{", types[1], types[2:end]..., "}")
+#         end
+#     else
+#         return T.name.name
+#     end
+# end
             
 """ Extract type parameters of the type of an object."""
 type_parameters(object) = typeof(object).parameters
@@ -322,24 +325,17 @@ end
 """ 
 Output detailed plain/text representation to specified stream. If
 `dict` is unspecified then the parameter dictionary (ie dictionary
-keyed on `object`'s fields) is displayed .To display an altered
-dictionary for some subtype of `BaseType` overload the two-argument
-version of this method and call *this* method with the altered
-dictionary.
+keyed on `object`'s fields) is displayed. 
 
 """
-function Base.showall(stream::IO, object::BaseType;
+function Base.show(stream::IO, ::MIME"text/plain", object::BaseType;
                       dict::Dict{Symbol,Any}=Dict{Symbol,Any}())
     if isempty(dict)
         dict = params(object)
     end
-    # type_parameters = collect(typeof(object).parameters)
-    # if !isempty(type_parameters)
-    #     dict[Symbol(" _type parameters_ ")] = type_parameters
-    # end
     show(stream, object)
-    println(stream)
-    showall(stream, dict)
+    println(stream, ": ")
+    show(stream, MIME("text/markdown"), dict)
 end
 
 
@@ -454,7 +450,14 @@ function err(rgs::SupervisedModel, predictor, X, y,
     return loss(y, predict(rgs, predictor, X, parallel, verbosity))
 end
 
-# TODO: Classifier loss and error functions
+function auc(truelabel::L) where L
+    _auc(y::AbstractVector{L}, yhat::AbstractVector{T}) where T<:Real = 
+        ROC.AUC(ROC.roc(yhat, y, truelabel))
+    return _auc
+end
+
+
+# TODO: More classifier loss and metrics 
 
 
 ## MACHINES
@@ -494,13 +497,12 @@ function Base.show(stream::IO, mach::TransformerMachine)
     print(stream, type_string, "@", abbreviated(hash(mach)))
 end
 
-function Base.showall(stream::IO, mach::TransformerMachine)
-    dict = params(mach)
-    showall(stream, mach, dict=dict)
-    println(stream, "\n## Transformer detail:")
-    showall(stream, mach.transformer)
-    println(stream, "\n##Scheme detail:")
-    showall(stream, mach.scheme)
+function Base.show(stream::IO, ::MIME"text/plain", mach::TransformerMachine)
+    show(stream, MIME("text/plain"), mach)
+    println(stream, "\nTransformer detail:")
+    show(stream, MIME("text/plain"), mach.transformer)
+    println(stream, "\nScheme detail:")
+    showall(stream, MIME("text/plain"), mach.scheme)
 end
 
 function transform(mach::TransformerMachine, X)
@@ -573,6 +575,7 @@ Analogous statements hold for array-like collections apart from
 struct RowsTransformer <: Transformer
     original_num_rows::Int
 end
+
 function fit(transformer::RowsTransformer, missing_indices, parallel, verbosity)
     scheme = Array{Union{Int,Missing}}(transformer.original_num_rows)
     counter = 1
@@ -586,6 +589,7 @@ function fit(transformer::RowsTransformer, missing_indices, parallel, verbosity)
     end
     return scheme
 end
+
 transform(transformer::RowsTransformer, scheme, rows) =
     collect(skipmissing(view(scheme, rows)))
 
@@ -770,16 +774,16 @@ function Base.show(stream::IO, mach::SupervisedMachine)
     print(stream, type_string, "@", abbreviated(hash(mach)))
 end
 
-function Base.showall(stream::IO, mach::SupervisedMachine)
+function Base.show(stream::IO, ::MIME"text/plain", mach::SupervisedMachine)
     dict = params(mach)
     report_items = sort(collect(keys(dict[:report])))
     dict[:report] = "Dict with keys: $report_items"
     dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
     dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
     delete!(dict, :cache)
-    showall(stream, mach, dict=dict)
-    println(stream, "\n## Model detail:")
-    showall(stream, mach.model)
+    show(stream, MIME("text/plain"), mach, dict=dict)
+    println(stream, "\nModel detail:")
+    show(stream, MIME("text/plain"), mach.model)
 end
 
 function fit!(mach::SupervisedMachine, rows;
@@ -855,7 +859,6 @@ function err(mach::SupervisedMachine, test_rows;
     !raw || verbosity < 0 || warn("Reporting errors for *transformed* target. "*
                                   "Use `raw=false` to report true errors.")
 
-
     # transform `test_rows` to account for rows that may have been
     # dropped during transformation:
     if !isempty(mach.rows_with_unseen)
@@ -894,7 +897,7 @@ clean!(model::SupervisedModel) = "" # no checks, emtpy message
 
 # To allow for an extra `rows` argument in `setup` and `predict`:
 
-# 1. fallbacks:
+# fallbacks:
 setup(model::SupervisedModel, Xt, yt, rows, scheme_X, parallel, verbosity) =
     setup(model, Xt[rows,:], view(yt, rows), scheme_X, parallel, verbosity)
 predict(model::SupervisedModel, predictor, Xt, rows, parallel, verbosity) =
@@ -1099,7 +1102,7 @@ function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
             println("Distributing cross-validation computation "*
                     "among $(nworkers()) workers.")
         end
-        return @parallel vcat for n in 1:n_folds
+        return @distributed vcat for n in 1:n_folds
             Float64[get_error(firsts[n], seconds[n])]
         end
     else
@@ -1199,7 +1202,7 @@ end
 macro pcurve(var1, range, code)
     quote
         N = length($(esc(range)))
-        pairs = @parallel vcat for i in eachindex($(esc(range)))
+        pairs = @distributed vcat for i in eachindex($(esc(range)))
             $(esc(var1)) = $(esc(range))[i]
             print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
             flush(STDOUT)
