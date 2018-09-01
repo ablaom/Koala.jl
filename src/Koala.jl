@@ -94,7 +94,7 @@ function default_transformer_y end
 
 ismissingtype(T::Type) = isa(T, Union) && T.a == Missing
 
-leadingtype(T::Union) = T.b::Type # for extacting pure type from missing type
+principaltype(T::Union) = T.b::Type # for extacting pure type from missing type
 
 hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != 0
 
