@@ -1,4 +1,3 @@
-__precompile__()
 module Koala
 
 # new: 
@@ -95,7 +94,7 @@ function default_transformer_y end
 
 ismissingtype(T::Type) = isa(T, Union) && T.a == Missing
 
-leadingtype(T::Union) = T.a::Type # for extacting pure type from missing type
+leadingtype(T::Union) = T.b::Type # for extacting pure type from missing type
 
 hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != 0
 
