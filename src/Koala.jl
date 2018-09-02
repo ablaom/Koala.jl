@@ -23,7 +23,7 @@ import StatsBase: sample, countmap
 import HypothesisTests: OneSampleTTest, pvalue
 # import ROC
 using  RecipesBase # for plotting recipes
-import Distributed.@distributed
+import Distributed: @distributed, nworkers
 
 # reexport:
 export describe, countmap, names, eltypes
@@ -203,7 +203,11 @@ function Base.show(stream::IO, ::MIME"text/markdown", d::Dict)
     iocontext = IOContext(stream, :limit=>true, :compact=>true)
     for k in kys
         key_string = string(k)*" "^(max(0,COLUMN_WIDTH - length(string(k))))*"| "
-        println(iocontext, key_string, d[k])
+        if d[k] == nothing
+            println(iocontext, key_string, "nothing")
+        else
+            println(iocontext, key_string, d[k])
+        end
     end
 end
 
@@ -488,10 +492,12 @@ function Base.show(stream::IO, mach::TransformerMachine)
 end
 
 function Base.show(stream::IO, ::MIME"text/plain", mach::TransformerMachine)
-    show(stream, mach)
-    println(stream, ":\n\n> Transformer detail:")
+    dict = params(mach)
+    dict[:scheme] = string("<object of type ", typeof(mach.scheme), ">")
+    show(stream, MIME("text/plain"), mach, dict=dict)
+    println(stream, "\n> transformer detail:")
     show(stream, MIME("text/plain"), mach.transformer)
-    println(stream, "\n> Scheme detail:")
+    println(stream, "\n> scheme detail:")
     show(stream, MIME("text/plain"), mach.scheme)
 end
 
@@ -771,12 +777,12 @@ end
 function Base.show(stream::IO, ::MIME"text/plain", mach::SupervisedMachine)
     dict = params(mach)
     report_items = sort(collect(keys(dict[:report])))
-    dict[:report] = "Dict with keys: $report_items"
-    dict[:Xt] = string(typeof(mach.Xt), " of shape ", size(mach.Xt))
-    dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
-    delete!(dict, :cache)
+    dict[:report] = string("<Dict with keys ", report_items, ">")
+    dict[:Xt] = string("<", typeof(mach.Xt), " of shape ", size(mach.Xt), ">")
+    dict[:yt] = string("<", typeof(mach.yt), " of shape ", size(mach.yt), ">")
+    dict[:cache] = "<omitted>"
     show(stream, MIME("text/plain"), mach, dict=dict)
-    println(stream, "\n > Model detail:")
+    println(stream, "\n > model detail:")
     show(stream, MIME("text/plain"), mach.model)
 end
 
@@ -1152,7 +1158,7 @@ example:
 N.B. The second range is returned as a *row* vector for consistency
 with the output matrix. This is also helpful when plotting, as in:
 
-    julia> u1, u2, A = @curve x linspace(0,1,100) α [1,2,3] x^α
+    julia> u1, u2, A = @curve x range(0, stop=1, length=100) α [1,2,3] x^α
     julia> u2 = map(u2) do α "α = "*string(α) end
     julia> plot(u1, A, label=u2)
 
@@ -1167,8 +1173,8 @@ macro curve(var1, range, code)
         for i in eachindex($(esc(range)))
             $(esc(var1)) = $(esc(range))[i]
             print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
-            flush(STDOUT)
-            # print(i,"\r"); flush(STDOUT) 
+            flush(stdout)
+            # print(i,"\r"); flush(stdout) 
             push!(output, $(esc(code)))
         end
         collect($(esc(range))), [x for x in output]
@@ -1185,7 +1191,7 @@ macro curve(var1, range1, var2, range2, code)
                 # @dbg $(esc(var1)) $(esc(var2))
                 print((@colon $(esc(var1))), "=", $(esc(var1)), " ")
                 print((@colon $(esc(var2))), "=", $(esc(var2)), "                    \r")
-                flush(STDOUT)
+                flush(stdout)
                 output[i1,i2] = $(esc(code))
             end
         end
@@ -1199,8 +1205,8 @@ macro pcurve(var1, range, code)
         pairs = @distributed vcat for i in eachindex($(esc(range)))
             $(esc(var1)) = $(esc(range))[i]
             print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
-            flush(STDOUT)
-            print(i,"\r"); flush(STDOUT) 
+            flush(stdout)
+            print(i,"\r"); flush(stdout) 
             [( $(esc(range))[i], $(esc(code)) )]
         end
         sort!(pairs, by=first)

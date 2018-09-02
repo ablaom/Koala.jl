@@ -1,6 +1,7 @@
 using Test
 using Koala
 using DataFrames
+using Statistics
 
 # loss functions:
 y = [1, 2, 3, 4]
@@ -41,10 +42,13 @@ describe(X)
 transformer = Koala.FeatureSelector(features=[:Indus, :Chas])
 transformerM = Machine(transformer, X)
 @test transform(transformerM, X) == X[[:Indus, :Chas]]
+[transformer, transformer]
+[transformerM, transformerM]
 
 rgs = ConstantRegressor()
+[rgs, rgs]
 mach = Machine(rgs, X, y, train, transformer_X=transformer)
-showall(mach)
+[mach, mach]
 fit!(mach, train)
 score = err(mach, test)
 println("score = $score")
@@ -59,9 +63,9 @@ learning_curve(mach, train, test, [2, 4, 8, 1000], raw=false)
 learning_curve(mach, train, test, [2000, 3000], restart=false)
 cv(mach, vcat(test, train))
 
-u,v = @curve r linspace(0,10,50) (r^2 + 1)
-u,v = @pcurve r linspace(0,10,50) (r^2 + 1)
-u,v,w =@curve r linspace(0,10,5) s linspace(0,5,4) r*s^2
+u,v = @curve r range(0, stop=10, length=50) (r^2 + 1)
+u,v = @pcurve r range(0, stop=10, length=50) (r^2 + 1)
+u,v,w = @curve r range(0, stop=10, length=5) s range(0,stop=5,length=4) r*s^2
 
 
 # test split_seen_unseen
@@ -124,7 +128,7 @@ learning_curve(mach, train, test, [2000, 3000], restart=false)
 cv(mach, vcat(test, train))
 
 # test compete function:
-@test compete(randn(1000) + 5, randn(1000))[1] == '1'
+@test compete(randn(1000) .+ 5, randn(1000))[1] == '1'
 
 load_iris()
 load_ames()
