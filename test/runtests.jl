@@ -12,6 +12,11 @@ yhat = y .+ 1
                sqrt((log(2/3)^2 + log(3/4)^2 + log(4/5)^2 + log(5/6)^2)/4))
 @test isapprox(rmsp(y, yhat), sqrt((1 + 1/4 + 1/9 + 1/16)/4))
 
+# for when ROC is added as working dependency:
+# y = ["n", "p", "n", "p", "n", "p"]
+# yhat = [0.1, 0.2, 0.3, 0.6, 0.7, 0.8]
+# @test auc("p")(y, yhat) ≈ 2/3
+
 # helpers:
 dict = Dict{String,Int}()
 dict["c"] = 3
@@ -22,7 +27,7 @@ bootstrap_resample_of_mean(randn(100))
 v = [1,2,5,4,missing,7,missing]
 @test hasmissing(v) 
 @test ismissingtype(eltype(v))
-@test Koala.leadingtype(eltype(v)) == Int
+@test Koala.principaltype(eltype(v)) == Int
 @test countmissing(v) == 2
 
 v[5] = 42; v[7] = 42
@@ -31,7 +36,7 @@ v[5] = 42; v[7] = 42
 X, y = load_boston();
 train, test = split(eachindex(y), 0.8); # 80:20 split
 describe(X)
-get_meta(X)
+# get_meta(X)
 
 transformer = Koala.FeatureSelector(features=[:Indus, :Chas])
 transformerM = Machine(transformer, X)

@@ -5,8 +5,7 @@ export @more, @dbg, @colon, keys_ordered_by_values, params
 export bootstrap_resample_of_mean, bootstrap_resample_of_median
 export load_boston, load_ames, load_iris, datanow
 export hasmissing, countmissing, ismissingtype, purify
-export get_meta
-export fit!, predict, rms, rmsl, rmslp1, rmsp, auc, err, transform, inverse_transform
+export fit!, predict, rms, rmsl, rmslp1, rmsp, err, transform, inverse_transform
 export ConstantRegressor
 export IdentityTransformer, FeatureSelector
 export default_transformer_X, default_transformer_y, clean!
@@ -22,11 +21,12 @@ import DataFrames: DataFrame, AbstractDataFrame, names, eltypes, describe
 import CSV
 import StatsBase: sample, countmap
 import HypothesisTests: OneSampleTTest, pvalue
+# import ROC
 using  RecipesBase # for plotting recipes
 import Distributed.@distributed
 
 # reexport:
-export describe, countmap
+export describe, countmap, names, eltypes
 
 # extended in this module:
 import Base: show, isempty, split
@@ -96,7 +96,7 @@ ismissingtype(T::Type) = isa(T, Union) && T.a == Missing
 
 principaltype(T::Union) = T.b::Type # for extacting pure type from missing type
 
-hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != 0
+hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != nothing
 
 countmissing(v::AbstractVector) = count(ismissing, v)
 
@@ -105,7 +105,7 @@ function purify(v::AbstractVector)
     T = eltype(v)
     if ismissingtype(T) 
         !hasmissing(v) || error("Can't purify a vector with missing values.")
-        return convert(Array{leadingtype(T)}, v)
+        return convert(Array{principaltype(T)}, v)
     else
         return v
     end
@@ -195,7 +195,7 @@ function load_iris()
 end
 
 """ show method for dictionaries with markdown format"""
-function show(stream::IO, ::MIME"text/markdown", d::Dict)
+function Base.show(stream::IO, ::MIME"text/markdown", d::Dict)
     print(stream, "\n")
     println(stream, "key or field            | value")
     println(stream, "-"^COLUMN_WIDTH * "|" * "-"^(2*COLUMN_WIDTH))
@@ -302,8 +302,8 @@ end
 #     end
 # end
             
-""" Extract type parameters of the type of an object."""
-type_parameters(object) = typeof(object).parameters
+# """ Extract type parameters of the type of an object."""
+# type_parameters(object) = typeof(object).parameters
 
 """ Output plain/text representation to specified stream. """
 function Base.show(stream::IO, object::BaseType)
@@ -440,11 +440,11 @@ function err(rgs::SupervisedModel, predictor, X, y,
     return loss(y, predict(rgs, predictor, X, parallel, verbosity))
 end
 
-function auc(truelabel::L) where L
-    _auc(y::AbstractVector{L}, yhat::AbstractVector{T}) where T<:Real = 
-        ROC.AUC(ROC.roc(yhat, y, truelabel))
-    return _auc
-end
+# function auc(truelabel::L) where L
+#     _auc(y::AbstractVector{L}, yhat::AbstractVector{T}) where T<:Real = 
+#         ROC.AUC(ROC.roc(yhat, y, truelabel))
+#     return _auc
+# end
 
 
 # TODO: More classifier loss and metrics 
@@ -488,11 +488,11 @@ function Base.show(stream::IO, mach::TransformerMachine)
 end
 
 function Base.show(stream::IO, ::MIME"text/plain", mach::TransformerMachine)
-    show(stream, MIME("text/plain"), mach)
-    println(stream, "\nTransformer detail:")
+    show(stream, mach)
+    println(stream, ":\n\n   Transformer detail:")
     show(stream, MIME("text/plain"), mach.transformer)
-    println(stream, "\nScheme detail:")
-    showall(stream, MIME("text/plain"), mach.scheme)
+    println(stream, "\n   Scheme detail:")
+    show(stream, MIME("text/plain"), mach.scheme)
 end
 
 function transform(mach::TransformerMachine, X)
@@ -523,14 +523,18 @@ mutable struct FeatureSelector <: Transformer
 end
 FeatureSelector(;features=Symbol[]) = FeatureSelector(features)
 function fit(transformer::FeatureSelector, X, parallel, verbosity)
+    namesX = names(X)
+    issubset(Set(transformer.features), Set(namesX)) ||
+        error("Attempting to select non-existent feature(s).")
     if isempty(transformer.features)
-        return names(X)
+        return namesX
     else
         return transformer.features
     end
 end
 function transform(transformer::FeatureSelector, features, X)
-    issubset(Set(features), Set(names(X))) || throw(DomainError)
+    issubset(Set(features), Set(names(X))) ||
+        error("Supplied frame does not admit previously selected features.")
     return X[features]
 end 
 
@@ -772,7 +776,7 @@ function Base.show(stream::IO, ::MIME"text/plain", mach::SupervisedMachine)
     dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
     delete!(dict, :cache)
     show(stream, MIME("text/plain"), mach, dict=dict)
-    println(stream, "\nModel detail:")
+    println(stream, "\n   Model detail:")
     show(stream, MIME("text/plain"), mach.model)
 end
 
