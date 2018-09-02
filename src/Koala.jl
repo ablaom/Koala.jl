@@ -104,7 +104,7 @@ countmissing(v::AbstractVector) = count(ismissing, v)
 function purify(v::AbstractVector)
     T = eltype(v)
     if ismissingtype(T) 
-        !hasmissing(v) || error("Can't purify a vector with missing values.")
+        !hasmissing(v) || @error "Can't purify a vector with missing values."
         return convert(Array{principaltype(T)}, v)
     else
         return v
@@ -143,7 +143,7 @@ end
 """ a version of warn that only warns given a *non-empty* string."""
 function softwarn(str)
     if !isempty(str)
-        warn(str)
+        @warn str
     end
 end
     
@@ -489,9 +489,9 @@ end
 
 function Base.show(stream::IO, ::MIME"text/plain", mach::TransformerMachine)
     show(stream, mach)
-    println(stream, ":\n\n   Transformer detail:")
+    println(stream, ":\n\n> Transformer detail:")
     show(stream, MIME("text/plain"), mach.transformer)
-    println(stream, "\n   Scheme detail:")
+    println(stream, "\n> Scheme detail:")
     show(stream, MIME("text/plain"), mach.scheme)
 end
 
@@ -525,7 +525,7 @@ FeatureSelector(;features=Symbol[]) = FeatureSelector(features)
 function fit(transformer::FeatureSelector, X, parallel, verbosity)
     namesX = names(X)
     issubset(Set(transformer.features), Set(namesX)) ||
-        error("Attempting to select non-existent feature(s).")
+        @error "Attempting to select non-existent feature(s)."
     if isempty(transformer.features)
         return namesX
     else
@@ -534,7 +534,7 @@ function fit(transformer::FeatureSelector, X, parallel, verbosity)
 end
 function transform(transformer::FeatureSelector, features, X)
     issubset(Set(features), Set(names(X))) ||
-        error("Supplied frame does not admit previously selected features.")
+        @error "Supplied frame does not admit previously selected features."
     return X[features]
 end 
 
@@ -642,33 +642,33 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         if isempty(features)
             features = names(X)
         end
-        allunique(features) || error("Duplicate features.")
-        issubset(Set(features), Set(names(X))) || error("Invalid feature vector.")
+        allunique(features) || @error "Duplicate features."
+        issubset(Set(features), Set(names(X))) || @error "Invalid feature vector."
 
         # bind `X` to view of `X` containing only the features
         # specified, in the order specified (does not generate copy):
         X = X[features]        
 
         # check for missing data and report eltypes:
-        verbosity < 1 || info("Element types of input features before transformation:")
+        verbosity < 1 || @info "Element types of input features before transformation:"
         for field in names(X)
             T = eltype(X[field])
             real_categorical = (T <: AbstractFloat ? "continuous" : "categorical")
             if ismissingtype(T)
                 if verbosity > -1
-                    warn(":$field has a missing-element type. ")
+                    @warn ":$field has a missing-element type. "
                 else 
-                    verbosity > 0 ? info("  :$field \t=> $T ($real_categorical)") : nothing
+                    verbosity > 0 ? (@info "  :$field \t=> $T ($real_categorical)") : nothing
                 end
             else
-                verbosity > 0 ? info("  :$field \t=> $T ($real_categorical)") : nothing
+                verbosity > 0 ? (@info "  :$field \t=> $T ($real_categorical)") : nothing
             end
         end
 
         # report size of data used for transformations
         percent_train = round(Int, 1000*length(train_rows)/length(y))/10
-        verbosity < 0 || info("$percent_train% of data used to compute "*
-                              "transformation parameters.")
+        verbosity < 0 || @info "$percent_train% of data used to compute "*
+                              "transformation parameters."
 
         # assign transformers if not provided:
         if isempty(transformer_X)
@@ -691,11 +691,11 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
             seen, unseen = split_seen_unseen(X, train_rows, test_rows)
             if verbosity > -1
                 if length(unseen) == 0 
-                    warn("All remaining rows of the inputs data have categorical "*
-                         "features taking values not seen during data transformation.")
+                    @warn "All remaining rows of the inputs data have categorical "*
+                         "features taking values not seen during data transformation."
                 else
                     bad_percentage = round(Int, 1000*length(unseen)/length(test_rows))/10
-                    warn("$bad_percentage% of the remaining rows of input data"*
+                    @warn "$bad_percentage% of the remaining rows of input data"*
                          "(recorded in the attribute `rows_with_unseen`) "*
                          "contain "*
                          "patterns for which some categorical feature "*
@@ -703,7 +703,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
                          "transformation. These will be ignored in "*
                          "calls to err(), cv() and  learning_curve(). "*
                          "However, you will be unable to safely "*
-                         "call predict() on such data.")
+                         "call predict() on such data."
                 end
             end
         else
@@ -729,11 +729,11 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
                 mach.yt = transform(mach.transformer_y, mach.scheme_y, y)
             catch exception
                 if isa(exception, KeyError)
-                    error("KeyError: key $(exception.key) not found. Problably "*
+                    @error "KeyError: key $(exception.key) not found. Problably "*
                         "a categorical feature takes on values "*
                         "not encountered in the rows provided for "*
                         "computing data transformations. Try calling "*
-                        "machine constructor with `drop_unseen=true`.")
+                        "machine constructor with `drop_unseen=true`."
                 else
                     throw(exception)
                 end
@@ -776,7 +776,7 @@ function Base.show(stream::IO, ::MIME"text/plain", mach::SupervisedMachine)
     dict[:yt] = string(typeof(mach.yt), " of shape ", size(mach.yt))
     delete!(dict, :cache)
     show(stream, MIME("text/plain"), mach, dict=dict)
-    println(stream, "\n   Model detail:")
+    println(stream, "\n > Model detail:")
     show(stream, MIME("text/plain"), mach.model)
 end
 
@@ -814,8 +814,8 @@ function fit!(mach::SupervisedMachine;
               add=false, verbosity=1, parallel=true, args...)
     verbosity < 0 || softwarn(clean!(mach.model))
     if !isdefined(mach, :cache)
-        error("You must specify training rows in the first call to fit!\n"*
-              "E.g., fit!(mach, train_rows).")
+        @error "You must specify training rows in the first call to fit!\n"*
+              "E.g., fit!(mach, train_rows)."
     end
     if !add
         mach.n_iter = 0
@@ -832,14 +832,14 @@ function fit!(mach::SupervisedMachine;
 end
 
 function predict(mach::SupervisedMachine, X, rows; parallel=true, verbosity=1)
-    mach.n_iter > 0 || error(string(mach, " has not been fitted."))
+    mach.n_iter > 0 || @error string(mach, " has not been fitted.")
     Xt = transform(mach.transformer_X, mach.scheme_X, view(X, rows))
     yt = predict(mach.model, mach.predictor, Xt, parallel, verbosity)
     return inverse_transform(mach.transformer_y, mach.scheme_y, yt)
 end
 
 function predict(mach::SupervisedMachine, X; parallel=true, verbosity=1)
-    mach.n_iter > 0 || error(string(mach, " has not been fitted."))
+    mach.n_iter > 0 || @error string(mach, " has not been fitted.")
     Xt = transform(mach.transformer_X, mach.scheme_X, X)
     yt = predict(mach.model, mach.predictor, Xt, parallel, verbosity)
     return inverse_transform(mach.transformer_y, mach.scheme_y, yt)
@@ -848,17 +848,17 @@ end
 function err(mach::SupervisedMachine, test_rows;
              loss=rms, parallel=false, verbosity=1, raw=false)
 
-    mach.n_iter > 0 || error("Attempting to predict using untrained machine.")
+    mach.n_iter > 0 || @error "Attempting to predict using untrained machine."
 
-    !raw || verbosity < 0 || warn("Reporting errors for *transformed* target. "*
-                                  "Use `raw=false` to report true errors.")
+    !raw || verbosity < 0 || @warn "Reporting errors for *transformed* target. "*
+                                  "Use `raw=false` to report true errors."
 
     # transform `test_rows` to account for rows that may have been
     # dropped during transformation:
     if !isempty(mach.rows_with_unseen)
         verbosity < 1 ||
-            info("Ignoring rows with categorical data values "*
-                 "not seen in transformation.")
+            @info "Ignoring rows with categorical data values "*
+                 "not seen in transformation."
         test_rows = transform(mach.rows_transformer_machine, test_rows)
     end
 
@@ -950,12 +950,12 @@ function Base.split(rows::AbstractVector{Int}, fractions...)
     first = 1
     for p in fractions
         n = round(Int, p*n_patterns)
-        n == 0 ? (Base.warn("A split has only one element"); n = 1) : nothing
+        n == 0 ? (@warn "A split has only one element"; n = 1) : nothing
         push!(rowss, rows[first:(first + n - 1)])
         first = first + n
     end
     if first > n_patterns
-        Base.warn("Last vector in the split has only one element.")
+        @warn "Last vector in the split has only one element."
         first = n_patterns
     end
     push!(rowss, rows[first:n_patterns])
@@ -984,21 +984,21 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
                         range; restart=true, loss=rms, raw=false, parallel=true,
                         verbosity=1, fit_args...) 
 
-    isdefined(mach.model, :n) || error("$(mach.model) does not support iteration.")
+    isdefined(mach.model, :n) || @error "$(mach.model) does not support iteration."
 
     # save to be reset at end:
     old_n = mach.model.n
     
     !raw || verbosity < 0 ||
-        warn("Reporting errors for *transformed* target. Use `raw=false` "*
-             " to report true errors.")
+        @warn "Reporting errors for *transformed* target. Use `raw=false` "*
+             " to report true errors." 
 
     # transform `train_rows` and `test_rows` to account for rows that
     # may have been dropped during transformation:
     if !isempty(mach.rows_with_unseen)
         verbosity < 1 ||
-            info("Ignoring rows with categorical data values "*
-                 "not seen in transformation.")
+            @info "Ignoring rows with categorical data values "*
+                 "not seen in transformation."
         train_rows = transform(mach.rows_transformer_machine, train_rows)
     end
 
@@ -1060,15 +1060,15 @@ function cv(mach::SupervisedMachine, rows; n_folds=9, loss=rms,
              parallel=true, verbosity=1, raw=false, randomize=false)
 
     !raw || verbosity < 0 ||
-        warn("Reporting errors for *transformed* target. Use `raw=false` "*
-             " to report true errors.")
+        @warn "Reporting errors for *transformed* target. Use `raw=false` "*
+             " to report true errors."
 
     # transform `rows` to account for rows that may have been dropped
     # during transformation:
     if !isempty(mach.rows_with_unseen)
         verbosity < 1 ||
-            info("Ignoring rows with categorical data values "*
-                 "not seen in transformation.")
+            @info "Ignoring rows with categorical data values "*
+                 "not seen in transformation."
         rows = transform(mach.rows_transformer_machine, rows)
     end
 
@@ -1364,7 +1364,8 @@ end
 
 @recipe function dummy(h::BootstrapHistogramOfMean; n=10^6)
     length(h.args) == 1 || typeof(h.args) <: AbstractVector ||
-        error("A BootstrapHistogramOfMean should be given one vector. Got: $(typeof(h.args))")
+        @error "A BootstrapHistogramOfMean should be given one vector. "*
+    "Got: $(typeof(h.args))"
     v = h.args[1]
     bootstrap = bootstrap_resample_of_mean(v; n=n)
     @series begin
@@ -1383,7 +1384,8 @@ end
             bootstrap
         end
     else
-        info("For denisty approximation in a bootstrap_histogram_of_mean, import StatPlots.")
+        @info "For denisty approximation in a bootstrap_histogram_of_mean, "*
+        "import StatPlots."
     end
 end
 
@@ -1408,7 +1410,8 @@ end
 
 @recipe function dummy(h::BootstrapHistogramOfMedian; n=10^6)
     length(h.args) == 1 || typeof(h.args) <: AbstractVector ||
-        error("A BootstrapHistogramOfMedian should be given one vector. Got: $(typeof(h.args))")
+        @error "A BootstrapHistogramOfMedian should be given one vector. "*
+    "Got: $(typeof(h.args))"
     v = h.args[1]
     bootstrap = bootstrap_resample_of_median(v; n=n)
     @series begin
@@ -1427,7 +1430,8 @@ end
             bootstrap
         end
     else
-        info("For denisty approximation in a bootstrap_histogram_of_median, import StatPlots.")
+        @info "For denisty approximation in a bootstrap_histogram_of_median, "*
+        "import StatPlots."
     end
 end
 
