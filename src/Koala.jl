@@ -701,7 +701,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
                          "features taking values not seen during data transformation."
                 else
                     bad_percentage = round(Int, 1000*length(unseen)/length(test_rows))/10
-                    @warn "$bad_percentage% of the remaining rows of input data"*
+                    @warn "$bad_percentage% of the remaining rows of input data "*
                          "(recorded in the attribute `rows_with_unseen`) "*
                          "contain "*
                          "patterns for which some categorical feature "*
