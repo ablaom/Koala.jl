@@ -100,7 +100,7 @@ hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != nothing
 
 countmissing(v::AbstractVector) = count(ismissing, v)
 
-""" convert a vector of eltype `Union{T, Missings.Missing}` to one of eltype `T`"""
+""" convert a vector of eltype `Union{T, Missing}` to one of eltype `T`"""
 function purify(v::AbstractVector)
     T = eltype(v)
     if ismissingtype(T) 
