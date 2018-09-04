@@ -656,19 +656,21 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
         X = X[features]        
 
         # check for missing data and report eltypes:
-        verbosity < 1 || @info "Element types of input features before transformation:"
+        if verbosity > 0
+            kind_given_feature = Dict{Symbol,String}()
+            @info "Element types of input features before transformation:"
+        end
         for field in names(X)
             T = eltype(X[field])
             real_categorical = (T <: AbstractFloat ? "continuous" : "categorical")
-            if ismissingtype(T)
-                if verbosity > -1
-                    @warn ":$field has a missing-element type. "
-                else 
-                    verbosity > 0 ? (@info "  :$field \t=> $T ($real_categorical)") : nothing
-                end
-            else
-                verbosity > 0 ? (@info "  :$field \t=> $T ($real_categorical)") : nothing
+            verbosity > 0 ? kind_given_feature[field] = real_categorical : nothing
+            if ismissingtype(T) && verbosity > -1
+                    @warn ":$field has a missing-element type. Treated as categorical."
             end
+        end
+        if verbosity > 0
+            show(stdout, MIME("text/markdown"), kind_given_feature)
+            println()
         end
 
         # report size of data used for transformations
