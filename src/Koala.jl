@@ -1,7 +1,7 @@
 module Koala
 
 # new: 
-export @more, @dbg, @colon, keys_ordered_by_values, params
+export @more, @dbg, @colon, keys_ordered_by_values, params, partition
 export bootstrap_resample_of_mean, bootstrap_resample_of_median
 export load_boston, load_ames, load_iris, datanow
 export hasmissing, countmissing, ismissingtype, purify
@@ -948,7 +948,7 @@ is inferred from the preceding ones. So, for example,
     (1:200, 201:900, 901:1000)
 
 """
-function Base.partition(rows::AbstractVector{Int}, fractions...)
+function partition(rows::AbstractVector{Int}, fractions...)
     rows = collect(rows)
     rowss = []
     if sum(fractions) >= 1
