@@ -35,7 +35,7 @@ v[5] = 42; v[7] = 42
 @test eltype(purify(v)) == Int
 
 X, y = load_boston();
-train, test = split(eachindex(y), 0.8); # 80:20 split
+train, test = partition(eachindex(y), 0.8); # 80:20 split
 describe(X)
 # get_meta(X)
 
@@ -82,7 +82,7 @@ df = DataFrame(v=v, w=w)
 
 # time tests:
 v=rand(UInt32, 10^7)
-trainrows, testrows = split(eachindex(v), 0.9)
+trainrows, testrows = partition(eachindex(v), 0.9)
 @time map(length, split_seen_unseen(v, trainrows, testrows))
 
 # test drop_unseen capability
@@ -107,7 +107,7 @@ df_shrunk = df[[1, 3, 6, 7, 8], :]
 @test df_shrunk[transform(tM, 3:7), :letters] == ['c', 'f', 'g']
 
 rgs = ConstantRegressor()
-train, test = split(eachindex(y), 0.8); # 80:20 split
+train, test = partition(eachindex(y), 0.8); # 80:20 split
 mach = Machine(rgs, X, y, train, drop_unseen=true)
 showall(mach)
 fit!(mach, train)

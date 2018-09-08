@@ -937,18 +937,18 @@ end
 ## VALIDATION TOOLS
 
 """
-## split(rows::AbstractVector{Int}, fractions...)
+## partition(rows::AbstractVector{Int}, fractions...)
 
 Then splits the vector `rows` into a tuple of `Vector{Int}` objects
 whose lengths are given by the corresponding `fractions` of
 `length(rows)`. The last fraction is not provided, as it
 is inferred from the preceding ones. So, for example,
 
-    julia> split(1:1000, 0.2, 0.7)
+    julia> partition(1:1000, 0.2, 0.7)
     (1:200, 201:900, 901:1000)
 
 """
-function Base.split(rows::AbstractVector{Int}, fractions...)
+function Base.partition(rows::AbstractVector{Int}, fractions...)
     rows = collect(rows)
     rowss = []
     if sum(fractions) >= 1

@@ -26,7 +26,7 @@ showcols(X)
 # single `DataFrame`, `X`, padding unknown instances of the target
 # `y`, and to construct integer vectors pointing to the rows of the
 # training, validation and test parts of the data:
-train, valid, test = split(eachindex(y), 0.7, 0.1); # that's 70%, 10%, 20%.
+train, valid, test = partition(eachindex(y), 0.7, 0.1); # that's 70%, 10%, 20%.
 
 # Choose a model for learning:
 using KoalaTrees
