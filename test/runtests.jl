@@ -48,7 +48,11 @@ transformerM = Machine(transformer, X)
 rgs = ConstantRegressor()
 [rgs, rgs]
 mach = Machine(rgs, X, y, train, transformer_X=transformer)
+show(stdout, mach, 3)
+show(mach, 3)
+mach
 [mach, mach]
+
 fit!(mach, train)
 score = err(mach, test)
 println("score = $score")

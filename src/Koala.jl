@@ -33,6 +33,7 @@ import Base: show, isempty, split
 
 # constants:
 const COLUMN_WIDTH = 24 # for displaying dictionaries with `show`
+const DEFAULT_SHOW_DEPTH = 1
 const srcdir = dirname(@__FILE__) # the full path for this file
 
 # functions to be extended (provided methods) in dependent packages:
@@ -120,13 +121,6 @@ function purify(v::AbstractVector)
     end
 end
     
-""" macro shortcut for displaying the last REPL expression"""
-macro more()
-    esc(quote
-        show(Main.ans)
-    end)
-end
-
 # """convenience macro for printing variable values (eg for degugging)"""
 # macro dbg(v)
 #     esc(quote
