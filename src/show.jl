@@ -31,6 +31,7 @@ end
 istoobig(::Any) = true
 istoobig(::Number) = false
 istoobig(x::AbstractArray) = maximum(size(x)) > 5 
+istoobig(d::Dict{T,Any}) where T <: Union{Number,Symbol} = length(keys(d)) > 5
 
 # _show fallback:
 function _show(stream::IO, object)
@@ -56,6 +57,16 @@ function _show(stream::IO, A::Array{T}) where T
         println(stream)
     else
         println(stream, "omitted Array{$T} of size $(size(A))")
+    end
+end
+
+function _show(stream::IO, d::Dict{T, Any}) where T <: Union{Number,Symbol}
+    if !istoobig(d)
+        println(stream, "omitted $(typeof(d)) with keys: ")
+        show(stream, MIME("text/plain"), keys(d))
+        println(stream)
+    else
+        println(stream, "omitted $(typeof(d))")
     end
 end
 
