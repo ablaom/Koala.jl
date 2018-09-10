@@ -13,7 +13,7 @@ function Base.show(stream::IO, ::MIME"text/plain", object::BaseType)
     _showall(stream, object, 1)
 end
 
-# The above _showall method (defined at the end of this file) will
+# The _showall method (defined at the end of this file) will
 # generate a table of the field values of the `BaseType` object,
 # dislaying each value by calling the method `_show` on it. The
 # behaviour of `_show(stream, f)` is a s follows:
@@ -70,11 +70,14 @@ end
 
 # method for generating a field table for BaseType objects:
 function _showall(stream::IO, object::BaseType, depth)
+    names = fieldnames(typeof(object))
     print(stream, "#"^depth, " ")
     show(stream, object)
+    if isempty(names)
+        return
+    end
     println(stream, ": ")
     println(stream, "````")
-    names = fieldnames(typeof(object))
     for fld in names
         fld_string = string(fld)*" "^(max(0,COLUMN_WIDTH - length(string(fld))))*"=>   "
         print(stream, fld_string)
