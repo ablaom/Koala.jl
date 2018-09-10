@@ -1,4 +1,5 @@
 const SHOW_DEPTH = 2
+const COLUMN_WIDTH = 25
 
 # short version of showing a `BaseType` object:
 function Base.show(stream::IO, object::BaseType)
@@ -75,7 +76,8 @@ function _showall(stream::IO, object::BaseType, depth)
     println(stream, "````")
     names = fieldnames(typeof(object))
     for fld in names
-        print(stream, fld, "\t -> \t")
+        fld_string = string(fld)*" "^(max(0,COLUMN_WIDTH - length(string(fld))))*"=>   "
+        print(stream, fld_string)
         if isdefined(object, fld)
             _show(stream, getfield(object, fld))
  #           println(stream)
