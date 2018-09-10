@@ -90,13 +90,22 @@ function default_transformer_y end
 # transformation.
 
 
+# All Koala types and types created in its associated libraries
+# subtype the following:
+
+abstract type BaseType end
+
+
 ## HELPERS AND CONVENIENCE FUNCTIONS
+
+# extension of `show` method for `BaseType` objects:
+include("show.jl")
 
 ismissingtype(T::Type) = isa(T, Union) && T.a == Missing
 
 principaltype(T::Union) = T.b::Type # for extacting pure type from missing type
 
-hasmissing(v::AbstractVector) =  findfirst(ismissing, v) != nothing
+hasmissing(v::AbstractVector) = findfirst(ismissing, v) != nothing
 
 countmissing(v::AbstractVector) = count(ismissing, v)
 
@@ -194,23 +203,6 @@ function load_iris()
     return X, y 
 end
 
-""" show method for dictionaries with markdown format"""
-function Base.show(stream::IO, ::MIME"text/markdown", d::Dict)
-    print(stream, "\n")
-    println(stream, "key or field            | value")
-    println(stream, "-"^COLUMN_WIDTH * "|" * "-"^(2*COLUMN_WIDTH))
-    kys = keys(d) |> collect |> sort
-    iocontext = IOContext(stream, :limit=>true, :compact=>true)
-    for k in kys
-        key_string = string(k)*" "^(max(0,COLUMN_WIDTH - length(string(k))))*"| "
-        if d[k] == nothing
-            println(iocontext, key_string, "nothing")
-        else
-            println(iocontext, key_string, d[k])
-        end
-    end
-end
-
 function keys_ordered_by_values(d::Dict{T,S}) where {T, S<:Real}
 
     items = collect(d) # 1d array containing the (key, value) pairs
@@ -275,10 +267,6 @@ end
 #                      n_missing=[countmissing(df[j]) for j in 1:size(df, 2)])
 # end
 
-## `BaseType` - base type for external `Koala` structs in dependent packages.  
-
-abstract type BaseType end
-
 """ Return a dictionary of values keyed on the fields of specified
 object, suitable for display"""
 function params(object::BaseType)
@@ -308,29 +296,6 @@ end
             
 # """ Extract type parameters of the type of an object."""
 # type_parameters(object) = typeof(object).parameters
-
-""" Output plain/text representation to specified stream. """
-function Base.show(stream::IO, object::BaseType)
-    abbreviated(n) = "..."*string(n)[end-2:end]
-    print(stream, string(typeof(object).name.name,
-                         "@", abbreviated(hash(object))))
-end
-
-""" 
-Output detailed plain/text representation to specified stream. If
-`dict` is unspecified then the parameter dictionary (ie dictionary
-keyed on `object`'s fields) is displayed. 
-
-"""
-function Base.show(stream::IO, ::MIME"text/plain", object::BaseType;
-                      dict::Dict{Symbol,Any}=Dict{Symbol,Any}())
-    if isempty(dict)
-        dict = params(object)
-    end
-    show(stream, object)
-    println(stream, ": ")
-    show(stream, MIME("text/markdown"), dict)
-end
 
 
 ## ABSTRACT MODEL TYPES
@@ -485,21 +450,6 @@ end
 Machine(transformer::Transformer, X; args...) =
     TransformerMachine(transformer, X; args...)
 
-function Base.show(stream::IO, mach::TransformerMachine)
-    abbreviated(n) = "..."*string(n)[end-2:end]
-    type_string = string("TransformerMachine{", typeof(mach.transformer).name.name, "}")
-    print(stream, type_string, "@", abbreviated(hash(mach)))
-end
-
-function Base.show(stream::IO, ::MIME"text/plain", mach::TransformerMachine)
-    dict = params(mach)
-    dict[:scheme] = string("<object of type ", typeof(mach.scheme), ">")
-    show(stream, MIME("text/plain"), mach, dict=dict)
-    println(stream, "\n> transformer detail:")
-    show(stream, MIME("text/plain"), mach.transformer)
-    println(stream, "\n> scheme detail:")
-    show(stream, MIME("text/plain"), mach.scheme)
-end
 
 function transform(mach::TransformerMachine, X)
     return transform(mach.transformer, mach.scheme, X)
@@ -669,7 +619,7 @@ mutable struct SupervisedMachine{P, M <: SupervisedModel{P}} <: Machine
             end
         end
         if verbosity > 0
-            show(stdout, MIME("text/markdown"), kind_given_feature)
+            show(stdout, MIME("text/plain"), kind_given_feature)
             println()
         end
 
@@ -769,24 +719,6 @@ end
 
 Machine(model::SupervisedModel, X, y, train_rows; args...) =
     SupervisedMachine(model, X, y, train_rows; args...)
-
-function Base.show(stream::IO, mach::SupervisedMachine)
-    abbreviated(n) = "..."*string(n)[end-2:end]
-    type_string = string("SupervisedMachine{", typeof(mach.model).name.name, "}")
-    print(stream, type_string, "@", abbreviated(hash(mach)))
-end
-
-function Base.show(stream::IO, ::MIME"text/plain", mach::SupervisedMachine)
-    dict = params(mach)
-    report_items = sort(collect(keys(dict[:report])))
-    dict[:report] = string("<Dict with keys ", report_items, ">")
-    dict[:Xt] = string("<", typeof(mach.Xt), " of shape ", size(mach.Xt), ">")
-    dict[:yt] = string("<", typeof(mach.yt), " of shape ", size(mach.yt), ">")
-    dict[:cache] = "<omitted>"
-    show(stream, MIME("text/plain"), mach, dict=dict)
-    println(stream, "\n > model detail:")
-    show(stream, MIME("text/plain"), mach.model)
-end
 
 function fit!(mach::SupervisedMachine, rows;
               add=false, verbosity=1, parallel=true, args...)
