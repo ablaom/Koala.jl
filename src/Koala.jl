@@ -952,6 +952,7 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
         x > mach.n_iter
     end
 
+    report = Dict{Symbol,Any}()
     while !isempty(range)
         verbosity < 1 || print("\rNext iteration number: ", range[1]) 
         # set number of iterations for `fit` call:
@@ -973,7 +974,8 @@ function learning_curve(mach::SupervisedMachine, train_rows, test_rows,
 
     verbosity < 1 || println("\nLearning curve added to machine report.")
     
-    mach.report[:learning_curve] = (n_iter_list, errors)
+    report[:learning_curve] = (n_iter_list, errors)
+    merge!(mach.report, report)
     
     mach.model.n = old_n
     

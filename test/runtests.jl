@@ -49,8 +49,7 @@ rgs = ConstantRegressor()
 [rgs, rgs]
 mach = Machine(rgs, X, y, train, transformer_X=transformer)
 show(stdout, mach, 3)
-show(mach, 3)
-mach
+show(mach, 2)
 [mach, mach]
 
 fit!(mach, train)
