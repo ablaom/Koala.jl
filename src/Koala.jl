@@ -32,8 +32,9 @@ export describe, countmap, names, eltypes
 import Base: show, isempty, split
 
 # constants:
-const COLUMN_WIDTH = 24 # for displaying dictionaries with `show`
-const DEFAULT_SHOW_DEPTH = 1
+const COLUMN_WIDTH = 24           # for displaying dictionaries with `show`
+const DEFAULT_SHOW_DEPTH = 1      # how deep to display fields of `BaseType` objects
+const LINE_SEPARATOR = ""         # "````" what to put on show separation lines
 const srcdir = dirname(@__FILE__) # the full path for this file
 
 # functions to be extended (provided methods) in dependent packages:

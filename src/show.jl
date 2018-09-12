@@ -13,7 +13,9 @@
 # MIME"plain/text") form of `f` is shown. To override this behaviour,
 # overload the `_show` method for the type in question.
 
-# helper to display abbreviated versions of integers:
+## HELPER
+
+"""to display abbreviated versions of integers"""
 abbreviated(n) = "..."*string(n)[end-2:end]
 
 ## EXPOSED SHOW METHODS
@@ -125,7 +127,7 @@ function _recursive_show(stream::IO, object::BaseType, current_depth, depth)
             println(stream)
             return
         end
-        println(stream, "````")
+        println(stream, LINE_SEPARATOR)
         for fld in names
             fld_string = string(fld)*" "^(max(0,COLUMN_WIDTH - length(string(fld))))*"=>   "
             print(stream, fld_string)
@@ -137,7 +139,7 @@ function _recursive_show(stream::IO, object::BaseType, current_depth, depth)
                 #           println(stream)
             end
         end
-        println(stream, "````")
+        println(stream, LINE_SEPARATOR)
         for fld in names
             if isdefined(object, fld)
                 subobject = getfield(object, fld)
