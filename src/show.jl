@@ -127,7 +127,6 @@ function _recursive_show(stream::IO, object::BaseType, current_depth, depth)
             println(stream)
             return
         end
-        println(stream, LINE_SEPARATOR)
         for fld in names
             fld_string = string(fld)*" "^(max(0,COLUMN_WIDTH - length(string(fld))))*"=>   "
             print(stream, fld_string)
@@ -139,7 +138,7 @@ function _recursive_show(stream::IO, object::BaseType, current_depth, depth)
                 #           println(stream)
             end
         end
-        println(stream, LINE_SEPARATOR)
+        println(stream)
         for fld in names
             if isdefined(object, fld)
                 subobject = getfield(object, fld)

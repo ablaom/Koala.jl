@@ -2,6 +2,7 @@
 
 # Load the basic Koala toolset:
 using Koala
+using Statistics
 
 # Load a built-in supervised learning data set:
 X, y = load_ames();
@@ -12,15 +13,15 @@ X, y = load_ames();
 # are treated as numerical features; all others are treated as
 # categorical.
 
-# Not in particular that a missing-type column - i.e., a column `col`
-# of element type `Union{T, Missings.Missing}` - will be treated as
-# categorical. In that case replace any missing values in `col` and
-# substitue `purify(col)` for `col` to get the type you probably
-# wanted. We can check for missing-type columns as follows:
+# In particular, note that a column `col` of element type
+# `Union{Missings, T}` - will be treated as categorical. In that case
+# replace any missing values in `col` and substitue `purify(col)` for
+# `col` to get the eltype `T` you probably wanted. We can check for
+# missing-type columns as follows:
 [ismissingtype(eltype(X[j])) for j in 1:size(X, 2)]
 
 # Or get a summary of eltype information:
-showcols(X)
+describe(X)
 
 # In Koala, normal practice is to store training and test data in a
 # single `DataFrame`, `X`, padding unknown instances of the target
@@ -34,13 +35,23 @@ tree = TreeRegressor()
 
 # Here `tree` is just a `mutable struct` storing the parameters
 # specifying how we should train a single tree regressor:
-showall(tree)
 
-# Construct a "machine" from the model, which wraps the model in
-# transformed versions of the data:
-treeM = Machine(tree, X, y, train)
-treeM.Xt[1:6,:]
-treeM.yt[1:6]
+# We now construct a "machine" from the model, ie, wrap the model in
+# transformed versions of the data (plus other stuff):
+treeM = Machine(tree, X, y, train);
+
+# If you are curious you can access the transformed data through the
+# fields `Xt` and `yt`. By default, `TreeRegressor` target variables
+# are not not actually transformed:
+treeM.yt == y
+
+# However, the `TreeRegressor` training algorithm expects inputs in the
+# form of a custom type called a `DataTableau`:
+treeM.Xt
+
+# In such an object, all categorical values are relaballed as integers
+# and converted to Floating type:
+treeM.Xt.raw[1:6,:]
 
 # Note that `Xt` and `yt represents *all* the transformed data. The
 # `train` argument of `Machine` merely specifies which part of the
@@ -49,9 +60,9 @@ treeM.yt[1:6]
 # test data. If we want to change the way we would like data to be
 # transformed, then we must build a new machine:
 ty = treeM.transformer_y
-showall(ty)
-ty.standardize = true
-treeM = Machine(tree, X, y, train, transformer_y=ty, verbosity=2)
+ty.standardize = true;
+treeM = Machine(tree, X, y, train, transformer_y=ty, verbosity=2);
+y[1:6]
 treeM.yt[1:6,:]
 
 # Now yt[train] will have zero mean and unit variance, but notice
@@ -68,36 +79,39 @@ err(treeM, valid)
 # and compared with the untransformed validation data to report the
 # error we actually want.
 
-# If we call `showall` on our machine, we see a summary of its
-# internals and also a ranking of feature importance, according to the
-# training we just performed.
-showall(treeM)
+# What can inspect `Koala` objects up to any specified depth:
+show(treeM, 3)
 
-# If we want to retrain on the *same* data, with a modified model
-# parameter, then their is no need to respecify the rows:
+# Statistics gathered during training of any machine are stored in the
+# `report` field:
+keys(treeM.report) |> collect
+treeM.report[:feature_importance_plot]
+
+# If we want to retrain on the *same* data, with a
+# modified model parameter, then their is no need to respecify the
+# rows:
 tree.regularization = 0.5
-fit!(treeM)
+fit!(treeM);
 err(treeM, valid)
 
 # To retrain using *different* data:
-fit!(treeM, vcat(train, valid))
+fit!(treeM, vcat(train, valid));
 err(treeM, test)
 
 # Let's tune the regularization parameter. We will use Koala's
 # `@curve` macro:
-r_vals, errs = @curve r linspace(0,0.99,101) begin
+r_vals, errs = @curve r range(0, stop=0.99, length=101) begin
     tree.regularization = r
     fit!(treeM, train)
     err(treeM, valid)
 end;
 
-# Here `linspace(0,0.99,101)` specifies the range of values for the
-# variable `r`. Plotting the results:
+# Plotting the results:
 using UnicodePlots
 lineplot(r_vals, errs)
 
 # The optimal regularization is given by
-r = r_vals[indmin(errs)]
+r = r_vals[argmin(errs)]
 
 # Here's how to obtain cross-validation errors (parallelized by default):
 fulltrain = vcat(train, valid);
@@ -108,13 +122,13 @@ cv(treeM, fulltrain)
 cv(treeM, fulltrain, raw=true, n_folds=6)
 
 # We'll now fine-tune using cross-validation:
-r_vals, errs = @curve r linspace(0.8,0.99,51) begin
+r_vals, errs = @curve r range(0.8, stop=0.99, length=51) begin
     tree.regularization = r
     mean(cv(treeM, fulltrain, verbosity=0))
 end;
 
 # And report final estimate for the error:
-tree.regularization = r_vals[indmin(errs)]
+tree.regularization = r_vals[argmin(errs)]
 errs = cv(treeM, fulltrain, n_folds=12)
 println("95% confidence interval for error = ", mean(errs), " ± ", 2*std(errs))
 
@@ -127,12 +141,12 @@ err(treeM, test)
 # Build an ensemble of `RegressorTree` models, :
 using KoalaEnsembles
 forest = EnsembleRegressor(atom=tree)
-showall(forest)
 
 # If we tweak `tree` parameters, these are reflected in the forest:
 tree.regularization = 0
 tree.max_features = 4
-showall(forest.atom)
+show(forest, 2)
+
 
 # Let's wrap the model in appropriately transformed data:
 forestM = Machine(forest, X, y, train)
@@ -159,18 +173,17 @@ forest.n = 250
 # dropped altogether.
 
 fit!(forestM, train)
-forestM.report[:normalized_weights] |> showall
+forestM.report[:normalized_weights] 
 
 # To refit the weights with a new regularization penalty, but without
 # changing the ensemble itself, use ``fit_weights``:
 
 forest.weight_regularization = 0.5
 fit_weights!(forestM)
-forestM.report[:normalized_weights] |> showall
+forestM.report[:normalized_weights] 
 
 # Tuning the parameter `forest.weight_regularization` may be done
 # with the help of the `weight_regularization_curve` function:
-
 reg_vals, errs = weight_regularization_curve(forestM, test; range = linspace(0,1,51));
 lineplot(reg_vals, errs)
 
