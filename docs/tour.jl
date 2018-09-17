@@ -20,7 +20,7 @@ X, y = load_ames();
 # missing-type columns as follows:
 [ismissingtype(eltype(X[j])) for j in 1:size(X, 2)]
 
-# Or get a summary of eltype information:
+# Or get a summary including eltype information:
 describe(X)
 
 # In Koala, normal practice is to store training and test data in a
@@ -36,7 +36,7 @@ tree = TreeRegressor()
 # Here `tree` is just a `mutable struct` storing the parameters
 # specifying how we should train a single tree regressor:
 
-# We now construct a "machine" from the model, ie, wrap the model in
+# We now construct a *machine* from the model, ie, wrap the model in
 # transformed versions of the data (plus other stuff):
 treeM = Machine(tree, X, y, train);
 
@@ -79,7 +79,7 @@ err(treeM, valid)
 # and compared with the untransformed validation data to report the
 # error we actually want.
 
-# What can inspect `Koala` objects up to any specified depth:
+# We can inspect `Koala` objects up to any specified depth:
 show(treeM, 3)
 
 # Statistics gathered during training of any machine are stored in the
@@ -147,19 +147,18 @@ tree.regularization = 0
 tree.max_features = 4
 show(forest, 2)
 
-
 # Let's wrap the model in appropriately transformed data:
-forestM = Machine(forest, X, y, train)
+forestM = Machine(forest, X, y, train);
 
 # A model with `n` as a parameter indicates it is iterative in some
 # sense. Here `forest.n` is the number of models in the
 # ensemble. Koala's built in function `learning_curve` can be used to
 # determine the size of `n`. 
 n_vals, errs = learning_curve(forestM, train, valid, 20:10:400)
-lineplot(n_vals, errs)
+scatterplot(n_vals, errs)
 
-# So the following is reasonable:
-forest.n = 250
+# For now let's stick to a relatively small ensemble:
+forest.n = 25
 
 # Commonly in ensemble methods, predictions are the means of the
 # predictions of each regressor in the ensemble. Here predictions are
@@ -179,16 +178,17 @@ forestM.report[:normalized_weights]
 # changing the ensemble itself, use ``fit_weights``:
 
 forest.weight_regularization = 0.5
-fit_weights!(forestM)
+fit_weights!(forestM);
 forestM.report[:normalized_weights] 
 
 # Tuning the parameter `forest.weight_regularization` may be done
 # with the help of the `weight_regularization_curve` function:
-reg_vals, errs = weight_regularization_curve(forestM, test; range = linspace(0,1,51));
+reg_vals, errs = weight_regularization_curve(forestM, test;
+                                             range = range(0, stop=1, length=51));
 lineplot(reg_vals, errs)
 
 # In this case maximum regulariation is indicated:
-reg_vals[indmin(errs)]
+reg_vals[argmin(errs)]
 
 
 

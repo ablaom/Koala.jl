@@ -1101,8 +1101,8 @@ macro curve(var1, range, code)
         output = []
         N = length($(esc(range)))
         for i in eachindex($(esc(range)))
-            $(esc(var1)) = $(esc(range))[i]
-            print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
+            local $(esc(var1)) = $(esc(range))[i]
+            print((@colon $var1), "=", $(esc(var1)), "                   \r")
             flush(stdout)
             # print(i,"\r"); flush(stdout) 
             push!(output, $(esc(code)))
@@ -1115,17 +1115,17 @@ macro curve(var1, range1, var2, range2, code)
     quote
         output = Array{Float64}(undef, length($(esc(range1))), length($(esc(range2))))
         for i1 in eachindex($(esc(range1)))
-            $(esc(var1)) = $(esc(range1))[i1]
+            local $(esc(var1)) = $(esc(range1))[i1]
             for i2 in eachindex($(esc(range2)))
-                $(esc(var2)) = $(esc(range2))[i2]
+                local $(esc(var2)) = $(esc(range2))[i2]
                 # @dbg $(esc(var1)) $(esc(var2))
-                print((@colon $(esc(var1))), "=", $(esc(var1)), " ")
-                print((@colon $(esc(var2))), "=", $(esc(var2)), "                    \r")
+                print((@colon $var1), "=", $(esc(var1)), " ")
+                print((@colon $var2), "=", $(esc(var2)), "                    \r")
                 flush(stdout)
                 output[i1,i2] = $(esc(code))
             end
         end
-        collect($(esc(range1))), collect($(esc(range2)))', output
+        collect($(esc(range1))), permutedims(collect($(esc(range2)))), output
     end
 end
 
@@ -1133,10 +1133,10 @@ macro pcurve(var1, range, code)
     quote
         N = length($(esc(range)))
         pairs = @distributed vcat for i in eachindex($(esc(range)))
-            $(esc(var1)) = $(esc(range))[i]
-            print((@colon $(esc(var1))), "=", $(esc(var1)), "                    \r")
-            flush(stdout)
-            print(i,"\r"); flush(stdout) 
+            local $(esc(var1)) = $(esc(range))[i]
+#            print((@colon $var1), "=", $(esc(var1)), "                    \r")
+#            flush(stdout)
+#            print(i,"\r"); flush(stdout) 
             [( $(esc(range))[i], $(esc(code)) )]
         end
         sort!(pairs, by=first)
