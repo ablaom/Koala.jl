@@ -316,7 +316,8 @@ function rms(y, yhat, rows)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in rows
-        ret += (y[i] - yhat[i])^2
+        dev = y[i] - yhat[i]
+        ret += dev*dev
     end
     return sqrt(ret/length(rows))
 end
@@ -325,7 +326,8 @@ function rms(y, yhat)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in eachindex(y)
-        ret += (y[i] - yhat[i])^2
+        dev = y[i] - yhat[i]
+        ret += dev*dev
     end
     return sqrt(ret/length(y))
 end
@@ -334,7 +336,8 @@ function rmsl(y, yhat, rows)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in rows
-        ret += (log(y[i]) - log(yhat[i]))^2
+        dev = log(y[i]) - log(yhat[i])
+        ret += dev*dev
     end
     return sqrt(ret/length(rows))
 end
@@ -343,7 +346,8 @@ function rmsl(y, yhat)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in eachindex(y)
-        ret += (log(y[i]) - log(yhat[i]))^2
+        dev = log(y[i]) - log(yhat[i])
+        ret += dev*dev
     end
     return sqrt(ret/length(y))
 end
@@ -352,7 +356,8 @@ function rmslp1(y, yhat, rows)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in rows
-        ret += (log(y[i] + 1) - log(yhat[i] + 1))^2
+        dev = log(y[i] + 1) - log(yhat[i] + 1)
+        ret += dev*dev
     end
     return sqrt(ret/length(rows))
 end
@@ -361,7 +366,8 @@ function rmslp1(y, yhat)
     length(y) == length(yhat) || throw(DimensionMismatch())
     ret = 0.0
     for i in eachindex(y)
-        ret += (log(y[i] + 1) - log(yhat[i] + 1))^2
+        dev = log(y[i] + 1) - log(yhat[i] + 1)
+        ret += dev*dev
     end
     return sqrt(ret/length(y))
 end
@@ -373,7 +379,8 @@ function rmsp(y, yhat, rows)
     count = 0
     for i in rows
         if y[i] != 0.0
-            ret += ((y[i] - yhat[i])/y[i])^2
+            dev = (y[i] - yhat[i])/y[i]
+            ret += dev*dev
             count += 1
         end
     end
@@ -386,12 +393,19 @@ function rmsp(y, yhat)
     count = 0
     for i in eachindex(y)
         if y[i] != 0.0
-            ret += ((y[i] - yhat[i])/y[i])^2
+            dev = (y[i] - yhat[i])/y[i]
+            ret += dev*dev
             count += 1
         end
     end
     return sqrt(ret/count)
 end
+
+# function auc(truelabel::L) where L
+#     _auc(y::AbstractVector{L}, yhat::AbstractVector{T}) where T<:Real = 
+#         ROC.AUC(ROC.roc(yhat, y, truelabel))
+#     return _auc
+# end
 
 function err(rgs::SupervisedModel, predictor, X, y, rows,
              parallel, verbosity, loss::Function=rms)
@@ -402,12 +416,6 @@ function err(rgs::SupervisedModel, predictor, X, y,
              parallel, verbosity, loss::Function=rms)
     return loss(y, predict(rgs, predictor, X, parallel, verbosity))
 end
-
-# function auc(truelabel::L) where L
-#     _auc(y::AbstractVector{L}, yhat::AbstractVector{T}) where T<:Real = 
-#         ROC.AUC(ROC.roc(yhat, y, truelabel))
-#     return _auc
-# end
 
 
 # TODO: More classifier loss and metrics 

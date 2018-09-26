@@ -112,7 +112,6 @@ df_shrunk = df[[1, 3, 6, 7, 8], :]
 rgs = ConstantRegressor()
 train, test = partition(eachindex(y), 0.8); # 80:20 split
 mach = Machine(rgs, X, y, train, drop_unseen=true)
-showall(mach)
 fit!(mach, train)
 score = err(mach, test)
 unseen = mach.rows_with_unseen
