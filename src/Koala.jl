@@ -1319,7 +1319,7 @@ end
         bins --> 50
         bootstrap
     end
-    if isdefined(:StatPlots) 
+    if @isdefined StatPlots 
         @series begin
             seriestype := :density
             label := ""
@@ -1365,7 +1365,7 @@ end
         bins --> 50
         bootstrap
     end
-    if isdefined(:StatPlots) 
+    if @isdefined StatPlots
         @series begin
             seriestype := :density
             label := ""
