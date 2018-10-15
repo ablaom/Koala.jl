@@ -1,29 +1,15 @@
-# The `_recursive_show` method (defined at the end of this file) will
-# generate a table of the field values of the `BaseType` object,
-# dislaying each value by calling the method `_show` on it. The
-# behaviour of `_show(stream, f)` is a s follows:
-#
-# 1. If `f` is itself a `BaseType` object, then its short form
-# is shown, with a separate table for its own field values appearing
-# subsequently (and so on, up to a depth of argument `depth`).
-#
-# 2. Otherwise `f` is displayed as "omitted T" where `T =
-# typeof(f)`, unless `istoobig(f)` is false (the `istoobig` fall-back
-# for arbitrary types being `true`). In the latter case, the long (ie,
-# MIME"plain/text") form of `f` is shown. To override this behaviour,
-# overload the `_show` method for the type in question.
-
 ## HELPER
 
 """to display abbreviated versions of integers"""
 abbreviated(n) = "..."*string(n)[end-2:end]
+
 
 ## EXPOSED SHOW METHODS
 
 # short version of showing a `BaseType` object:
 function Base.show(stream::IO, object::BaseType)
     str = string(typeof(object).name.name,
-                        "@", abbreviated(hash(object)))
+                        "@", abbreviated(objectid(object)))
     if !isempty(fieldnames(typeof(object)))
         printstyled(IOContext(stream, :color=> true), str,
                     color=:blue)
@@ -114,7 +100,24 @@ end
 
 _show(stream::IO, ::Nothing) = println(stream, "nothing")
 
-# method for generating a field table for BaseType objects:
+"""
+    _recursive_show(stream, object, current_depth, depth)
+
+Generate a table of the field values of the `BaseType` object,
+dislaying each value by calling the method `_show` on it. The
+behaviour of `_show(stream, f)` is as follows:
+
+1. If `f` is itself a `BaseType` object, then its short form is shown
+and `_recursive_show` generates as separate table for each of its
+field values (and so on, up to a depth of argument `depth`).
+
+2. Otherwise `f` is displayed as "omitted T" where `T = typeof(f)`,
+unless `istoobig(f)` is false (the `istoobig` fall-back for arbitrary
+types being `true`). In the latter case, the long (ie,
+MIME"plain/text") form of `f` is shown. To override this behaviour,
+overload the `_show` method for the type in question. 
+
+"""
 function _recursive_show(stream::IO, object::BaseType, current_depth, depth)
     if depth == 0 || isempty(fieldnames(typeof(object)))
         println(stream, object)
