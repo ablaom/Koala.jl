@@ -64,8 +64,8 @@ end
 _show(stream::IO, object::BaseType) = println(stream, object)
 
 # _show for other types:
-function _show(stream::IO, df::DataFrame)
-    println(stream, "omitted DataFrame of size $(size(df))")
+function _show(stream::IO, df::AbstractDataFrame)
+    println(stream, "omitted $(typeof(df))$ of size $(size(df))")
 end
 
 function _show(stream::IO, A::Array{T}) where T
