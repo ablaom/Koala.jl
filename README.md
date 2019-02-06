@@ -1,10 +1,14 @@
 # Koala ![](logo.png) 
 
 A Julia machine learning environment combining convenience and control,
-through a combination of high and low-level interfaces. Currently in
-development and experimental.
+through a combination of high and low-level interfaces. 
 
-A common high-level interface is provided through the systematic
+This experimental framework is no longer being maintained. The Koala
+project has been merged with
+the [MLJ](https://github.com/alan-turing-institute/MLJ.jl) machine
+learning framework being developed at the Alan Turing Institute.
+
+Koala's high-level interface is provided through the systematic
 implementation of default pretransformations of training and testing
 data. In particular, all learning algorithms receive learning data in
 a common format (a `DataFrame` object) with all algorithm-specific
